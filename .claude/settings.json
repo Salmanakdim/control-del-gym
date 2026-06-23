@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Read(//c/Users/Huawei/OneDrive/Escritorio/**)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5174)",
+      "PowerShell(Get-ChildItem \"c:\\\\Users\\\\Huawei\\\\OneDrive\\\\Escritorio\\\\Control del gym\\\\public\\\\exercise_videos_395\" | Select-Object -First 50 | ForEach-Object { $_.Name })",
+      "PowerShell(Get-ChildItem \"c:\\\\Users\\\\Huawei\\\\OneDrive\\\\Escritorio\\\\Control del gym\\\\public\\\\\" | ForEach-Object { $_.Name })",
+      "PowerShell(Get-ChildItem \"c:\\\\Users\\\\Huawei\\\\OneDrive\\\\Escritorio\\\\\" -Directory | ForEach-Object { $_.Name })",
+      "PowerShell(Get-ChildItem \"c:\\\\Users\\\\Huawei\\\\OneDrive\\\\Escritorio\\\\Control del gym\\\\\" -Directory | ForEach-Object { $_.Name })",
+      "PowerShell(Get-ChildItem \"c:\\\\Users\\\\Huawei\\\\OneDrive\\\\Escritorio\\\\Control del gym\\\\exercise_videos_395\" | Select-Object -First 60 | ForEach-Object { $_.Name })",
+      "PowerShell(Get-ChildItem \"c:\\\\Users\\\\Huawei\\\\OneDrive\\\\Escritorio\\\\Control del gym\\\\exercise_videos_395\" | ForEach-Object { $_.Name } | Measure-Object | Select-Object -ExpandProperty Count)",
+      "PowerShell(Get-ChildItem \"c:\\\\Users\\\\Huawei\\\\OneDrive\\\\Escritorio\\\\Control del gym\\\\exercise_videos_395\" | ForEach-Object { $_.Name } | Sort-Object)",
+      "PowerShell(ffmpeg -version 2>&1)",
+      "PowerShell(npm run build 2>&1)",
+      "PowerShell(tail -20)",
+      "PowerShell(gh --version 2>&1)",
+      "PowerShell(winget install --id GitHub.cli -e --silent 2>&1)",
+      "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); gh --version 2>&1 | Select-Object -First 1)",
+      "PowerShell(git init)",
+      "PowerShell(git add .)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\Huawei\\OneDrive\\Escritorio\\Control del gym\\exercise_videos_395"
+    ]
+  }
+}
