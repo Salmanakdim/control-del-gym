@@ -22,18 +22,19 @@ export default function Auth() {
     try {
       if (mode === 'register') {
         const result = await signUp(email, password, name)
-        console.log('signUp result:', JSON.stringify(result))
-        if (result.error) setError(result.error.message || result.error.code || JSON.stringify(result.error))
-        else {
-          const loginResult = await signIn(email, password)
-          if (loginResult.error) setSuccess('Cuenta creada. Ya puedes iniciar sesión.')
+        if (result.error) {
+          setError(result.error.message || 'Error al crear la cuenta')
+        } else if (result.data?.session) {
+          // session returned → onAuthStateChange redirects automatically
+        } else {
+          // no session → confirmation email sent
+          setSuccess('Revisa tu email para confirmar la cuenta.')
         }
       } else {
         const result = await signIn(email, password)
-        console.log('signIn result:', JSON.stringify(result))
         if (result.error) setError(result.error.message === 'Invalid login credentials'
           ? 'Email o contraseña incorrectos'
-          : result.error.message || result.error.code || JSON.stringify(result.error))
+          : result.error.message || 'Error al iniciar sesión')
       }
     } catch (e) {
       console.log('catch error:', e)
