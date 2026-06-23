@@ -1,17 +1,32 @@
 import { useState } from 'react'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Sidebar from './components/Sidebar'
 import Dashboard from './pages/Dashboard'
 import Routines from './pages/Routines'
 import WorkoutLog from './pages/WorkoutLog'
 import Progress from './pages/Progress'
 import Exercises from './pages/Exercises'
+import Auth from './pages/Auth'
 import { useLocalStorage } from './hooks/useLocalStorage'
 import { SEED_ROUTINES, SEED_LOGS } from './store/gymStore'
 
-export default function App() {
+function AppInner() {
+  const { user } = useAuth()
   const [page, setPage] = useState('dashboard')
   const [routines, setRoutines] = useLocalStorage('gym_routines', SEED_ROUTINES)
   const [logs, setLogs] = useLocalStorage('gym_logs', SEED_LOGS)
+
+  // Loading
+  if (user === undefined) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  // Not logged in
+  if (user === null) return <Auth />
 
   return (
     <div className="flex min-h-screen bg-slate-100">
@@ -26,5 +41,13 @@ export default function App() {
         </div>
       </main>
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppInner />
+    </AuthProvider>
   )
 }
