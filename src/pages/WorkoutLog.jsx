@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
-import { Plus, Trash2, Check, Clock, ArrowLeft, Dumbbell, MoreVertical, Timer, Trophy, Search, X, ChevronRight } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { Plus, Trash2, Check, Clock, ArrowLeft, Dumbbell, MoreVertical, Timer, Trophy, Search, X, ChevronRight, ChevronDown, ChevronUp, Edit2 } from 'lucide-react'
 import { uid, EXERCISES, MUSCLE_COLORS, DEFAULT_MUSCLE_COLOR } from '../store/gymStore'
 
 const PICKER_MUSCLES = ['Todos', 'Pecho', 'Espalda', 'Hombros', 'Bíceps', 'Tríceps', 'Cuádriceps', 'Isquiotibiales', 'Glúteos', 'Core', 'Pantorrillas', 'Trapecios', 'Antebrazos', 'Cardio']
@@ -45,8 +46,8 @@ function VideoModal({ exercise, onClose }) {
 function VideoThumbPicker({ src, borderColor, onClick }) {
   const thumb = src.replace('/exercise_videos_395/', '/exercise_thumbnails/').replace('.mp4', '.jpg')
   return (
-    <button onClick={onClick} className={`w-11 h-11 rounded-2xl overflow-hidden flex-shrink-0 bg-white border-2 ${borderColor} shadow-sm`}>
-      <img src={thumb} alt="" className="w-full h-full object-contain" loading="lazy" />
+    <button onClick={onClick} className={`w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0 bg-white border-2 ${borderColor} shadow-sm`}>
+      <img src={thumb} alt="" className="w-full h-full object-cover" loading="lazy" />
     </button>
   )
 }
@@ -64,10 +65,9 @@ function ExercisePicker({ onSelect, onClose }) {
     )
   }), [search, muscle])
 
-  return (
-    <>
+  return createPortal(
+    <div className="fixed inset-0 flex flex-col" style={{ background: 'rgba(0,0,0,0.45)', zIndex: 9999 }} onClick={onClose}>
       {previewEx && <VideoModal exercise={previewEx} onClose={() => setPreviewEx(null)} />}
-    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={onClose}>
       <div
         className="mt-auto bg-white rounded-t-3xl flex flex-col"
         style={{ maxHeight: '92dvh' }}
@@ -158,8 +158,8 @@ function ExercisePicker({ onSelect, onClose }) {
           )}
         </div>
       </div>
-    </div>
-    </>
+    </div>,
+    document.body
   )
 }
 
@@ -512,8 +512,130 @@ function ExerciseCard({ ex, ei, doneSets, prSets, note, logs, onUpdateSet, onRem
   )
 }
 
+// ── Routine Exercise Card (simplified, for editing) ────────────────────────────
+function RoutineExCard({ exercise, onChange, onRemove }) {
+  const [showMenu, setShowMenu] = useState(false)
+  const [showVideo, setShowVideo] = useState(false)
+  const c = MUSCLE_COLORS[exercise.muscle] ?? DEFAULT_MUSCLE_COLOR
+
+  function updSet(i, patch) {
+    const sets = [...exercise.sets]; sets[i] = { ...sets[i], ...patch }
+    onChange({ ...exercise, sets })
+  }
+
+  return (
+    <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden mb-3">
+      {showVideo && <VideoModal exercise={exercise} onClose={() => setShowVideo(false)} />}
+      <div className="flex items-start gap-3 px-4 pt-4 pb-2">
+        <PausedVideoThumb
+          src={exercise.video ? `/exercise_videos_395/${exercise.video}` : null}
+          borderColor={c.border}
+          onClick={() => exercise.video && setShowVideo(true)}
+        />
+        <div className="flex-1 min-w-0 pt-0.5">
+          <p className="text-blue-600 font-semibold text-base leading-tight truncate">{exercise.name}</p>
+          <p className="text-xs text-slate-400 mt-0.5">{exercise.muscle}</p>
+        </div>
+        <div className="relative flex-shrink-0">
+          <button onClick={() => setShowMenu(m => !m)} className="p-1 text-slate-400"><MoreVertical size={18}/></button>
+          {showMenu && (
+            <div className="absolute right-0 top-8 bg-white border border-slate-200 rounded-xl shadow-lg z-20 py-1 min-w-36">
+              <button onClick={() => { onRemove(); setShowMenu(false) }}
+                className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-red-50">
+                Eliminar ejercicio
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="grid grid-cols-[40px_1fr_1fr] items-center px-4 py-2 border-t border-b border-slate-200 bg-slate-50">
+        <div className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Serie</div>
+        <div className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">KG</div>
+        <div className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Reps</div>
+      </div>
+      {exercise.sets.map((set, i) => (
+        <div key={i} className={`grid grid-cols-[40px_1fr_1fr] items-center px-4 py-2.5 border-b border-white ${i%2===0?'bg-white':'bg-slate-50'}`}>
+          <span className="text-center text-sm font-bold text-slate-400">{i+1}</span>
+          <input type="text" value={set.kg||''} inputMode="decimal" placeholder="—"
+            onChange={e => updSet(i,{kg:e.target.value})}
+            onBlur={e => updSet(i,{kg:parseFloat(e.target.value)||0})}
+            className="text-center text-sm font-bold text-slate-800 bg-transparent border-none outline-none w-full"/>
+          <input type="text" value={set.reps||''} inputMode="numeric" placeholder="—"
+            onChange={e => updSet(i,{reps:e.target.value})}
+            onBlur={e => updSet(i,{reps:parseInt(e.target.value)||0})}
+            className="text-center text-sm font-bold text-slate-800 bg-transparent border-none outline-none w-full"/>
+        </div>
+      ))}
+      <button
+        onClick={() => { const last=exercise.sets.at(-1)||{kg:0,reps:10}; onChange({...exercise,sets:[...exercise.sets,{...last,id:uid()}]}) }}
+        className="w-full py-3 flex items-center justify-center gap-2 text-slate-400 text-sm bg-slate-50 active:bg-slate-100">
+        <Plus size={14}/> Agregar serie
+      </button>
+    </div>
+  )
+}
+
+// ── Routine Modal ──────────────────────────────────────────────────────────────
+function RoutineModal({ routine, onSave, onClose }) {
+  const [draft, setDraft]       = useState(routine || { id: uid(), name: '', exercises: [] })
+  const [showPicker, setShowPicker] = useState(false)
+
+  return (
+    <>
+      <div className="fixed inset-0 z-50 bg-black/40 overflow-y-auto py-8 px-4 flex items-start justify-center">
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between p-5 border-b border-slate-100">
+            <h2 className="font-bold text-slate-800 text-lg">{routine ? 'Editar rutina' : 'Nueva rutina'}</h2>
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+          </div>
+          <div className="p-5 space-y-4">
+            <input
+              autoFocus value={draft.name}
+              onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
+              placeholder="Nombre de la rutina"
+              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {draft.exercises.map((ex, i) => (
+              <RoutineExCard key={ex.id||i} exercise={ex}
+                onChange={e => setDraft(d => { const exs=[...d.exercises]; exs[i]=e; return {...d,exercises:exs} })}
+                onRemove={() => setDraft(d => ({ ...d, exercises: d.exercises.filter((_,idx) => idx!==i) }))}
+              />
+            ))}
+            <button onClick={() => setShowPicker(true)}
+              className="flex items-center gap-2 w-full justify-center border-2 border-dashed border-slate-200 rounded-xl py-3 text-slate-400 hover:border-blue-400 hover:text-blue-500 transition-colors">
+              <Plus size={16}/> Añadir ejercicio
+            </button>
+          </div>
+          <div className="flex gap-3 p-5 border-t border-slate-100">
+            <button onClick={onClose} className="flex-1 border border-slate-200 rounded-xl py-2.5 text-slate-600 font-medium">
+              Cancelar
+            </button>
+            <button onClick={() => draft.name.trim() && onSave(draft)} disabled={!draft.name.trim()}
+              className="flex-1 bg-blue-600 text-white rounded-xl py-2.5 font-bold disabled:opacity-40">
+              Guardar rutina
+            </button>
+          </div>
+        </div>
+      </div>
+      {showPicker && (
+        <ExercisePicker
+          onSelect={ex => {
+            setDraft(d => ({ ...d, exercises: [...d.exercises, {
+              id: uid(), name: ex.name, muscle: ex.muscle, equipment: ex.equipment,
+              video: ex.video, restSecs: DEFAULT_REST, notes: '',
+              sets: [{ id: uid(), reps: 10, kg: 0 }]
+            }]}))
+            setShowPicker(false)
+          }}
+          onClose={() => setShowPicker(false)}
+        />
+      )}
+    </>
+  )
+}
+
 // ── Main ───────────────────────────────────────────────────────────────────────
-export default function WorkoutLog({ routines, logs, setLogs, setPage }) {
+export default function WorkoutLog({ routines, logs, onAddLog, setPage, startRoutineId, onStartRoutineConsumed, onSaveRoutine, onDeleteRoutine }) {
   const [phase, setPhase]             = useState('select')
   const [workoutName, setWorkoutName] = useState('Entreno')
   const [selectedRoutineId, setSelectedRoutineId] = useState(null)
@@ -533,6 +655,46 @@ export default function WorkoutLog({ routines, logs, setLogs, setPage }) {
 
   const [restActive, setRestActive]         = useState(false)
   const [restRemaining, setRestRemaining]   = useState(0)
+  const [routineModal, setRoutineModal] = useState(null)
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+  const [workoutMinimized, setWorkoutMinimized] = useState(false)
+  const overlayRef = useRef(null)
+  const miniBarRef = useRef(null)
+  const ANIM_DURATION = '1.3s cubic-bezier(0.4, 0, 0.2, 1)'
+
+  function minimizeWorkout() {
+    setWorkoutMinimized(true)
+    if (overlayRef.current) {
+      overlayRef.current.style.transition = `transform ${ANIM_DURATION}`
+      overlayRef.current.style.transform = 'translateY(100%)'
+      overlayRef.current.style.pointerEvents = 'none'
+    }
+    if (miniBarRef.current) {
+      miniBarRef.current.style.transition = `transform ${ANIM_DURATION}`
+      miniBarRef.current.style.transform = 'translateY(0)'
+    }
+  }
+
+  function expandWorkout() {
+    setWorkoutMinimized(false)
+    if (overlayRef.current) {
+      overlayRef.current.style.transition = `transform ${ANIM_DURATION}`
+      overlayRef.current.style.transform = 'translateY(0)'
+      overlayRef.current.style.pointerEvents = 'auto'
+    }
+    if (miniBarRef.current) {
+      miniBarRef.current.style.transition = `transform ${ANIM_DURATION}`
+      miniBarRef.current.style.transform = 'translateY(200%)'
+    }
+  }
+
+  useEffect(() => {
+    if (startRoutineId && routines.length > 0) {
+      const routine = routines.find(r => r.id === startRoutineId)
+      if (routine) startWorkout(routine)
+      onStartRoutineConsumed?.()
+    }
+  }, [startRoutineId, routines])
 
   useEffect(() => {
     if (phase !== 'active') return
@@ -625,15 +787,20 @@ export default function WorkoutLog({ routines, logs, setLogs, setPage }) {
         sets: ex.sets.filter(s => !s.warmup),
       })),
     }
-    if (log.exercises.length > 0) setLogs(ls => [log, ...ls])
+    if (log.exercises.length > 0) onAddLog(log)
     setSummaryLog(log)
     setPhase('summary')
   }
 
   const cancelWorkout = () => {
-    if (exercises.length === 0 || window.confirm('¿Salir sin guardar?')) {
-      clearInterval(timerRef.current); setPhase('select')
-    }
+    if (exercises.length === 0) { clearInterval(timerRef.current); setPhase('select') }
+    else setShowCancelConfirm(true)
+  }
+
+  const confirmCancel = () => {
+    clearInterval(timerRef.current)
+    setShowCancelConfirm(false)
+    setPhase('select')
   }
 
   // ── SUMMARY ──────────────────────────────────────────────────────────────────
@@ -706,55 +873,102 @@ export default function WorkoutLog({ routines, logs, setLogs, setPage }) {
     )
   }
 
-  // ── SELECT ───────────────────────────────────────────────────────────────────
-  if (phase === 'select') {
+  // ── SELECT (también se muestra cuando el entreno está minimizado) ─────────────
+  if (phase === 'select' || workoutMinimized) {
+    const handleStartRoutine = (r) => {
+      if (workoutMinimized) {
+        if (r && r.id === selectedRoutineId) {
+          setWorkoutMinimized(false)
+        } else {
+          startWorkout(r)
+          setWorkoutMinimized(false)
+        }
+      } else {
+        startWorkout(r)
+      }
+    }
+
     return (
-      <div className="space-y-5 max-w-lg">
+      <div className={`space-y-5 max-w-lg ${workoutMinimized ? 'pb-28' : ''}`}>
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Entrenamiento</h1>
           <p className="text-slate-500 text-sm mt-1">Elige cómo empezar</p>
         </div>
 
-        <button
-          onClick={() => startWorkout(null)}
-          className="w-full flex items-center gap-3 bg-white border-2 border-dashed border-slate-200 rounded-2xl px-5 py-4 text-slate-600 hover:border-blue-400 hover:text-blue-600 active:bg-blue-50 transition-colors"
-        >
-          <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Plus size={20} className="text-blue-600" />
-          </div>
-          <span className="font-semibold">Empezar Entrenamiento Vacío</span>
-        </button>
+        {!workoutMinimized && (
+          <button
+            onClick={() => startWorkout(null)}
+            className="w-full flex items-center gap-3 bg-white border-2 border-dashed border-slate-200 rounded-2xl px-5 py-4 text-slate-600 hover:border-blue-400 hover:text-blue-600 active:bg-blue-50 transition-colors"
+          >
+            <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Plus size={20} className="text-blue-600" />
+            </div>
+            <span className="font-semibold">Empezar Entrenamiento Vacío</span>
+          </button>
+        )}
 
         <div>
-          <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-3">
-            Mis Rutinas ({routines.length})
-          </h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest">
+              Mis Rutinas ({routines.length})
+            </h2>
+            <button onClick={() => setRoutineModal('new')}
+              className="flex items-center gap-1.5 bg-blue-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold active:bg-blue-700">
+              <Plus size={13}/> Nueva
+            </button>
+          </div>
           <div className="space-y-3">
             {routines.length === 0 && (
               <div className="bg-white rounded-2xl shadow-sm p-8 text-center text-slate-400 text-sm">
-                No tienes rutinas. Créalas en la sección Rutinas.
+                Crea tu primera rutina con el botón Nueva.
               </div>
             )}
-            {routines.map(r => (
-              <div key={r.id} className="bg-white rounded-2xl shadow-sm p-4 border border-slate-100">
-                <div className="mb-3">
-                  <div className="font-semibold text-slate-800">{r.name}</div>
-                  <div className="text-xs text-slate-400 mt-0.5 line-clamp-1">
-                    {r.exercises.map(e => e.name).join(', ')}
+            {routines.map(r => {
+              const isActive = workoutMinimized && r.id === selectedRoutineId
+              return (
+                <div key={r.id} className={`bg-white rounded-2xl shadow-sm p-4 border ${isActive ? 'border-blue-300' : 'border-slate-100'}`}>
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-slate-800">{r.name}</div>
+                      <div className="text-xs text-slate-400 mt-0.5 line-clamp-1">
+                        {r.exercises.map(e => e.name).join(', ')}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                      <button onClick={() => setRoutineModal(r)}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-100 active:bg-slate-200">
+                        <Edit2 size={14} className="text-slate-500"/>
+                      </button>
+                      <button onClick={() => { if(window.confirm('¿Eliminar esta rutina?')) onDeleteRoutine(r.id) }}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-50 active:bg-red-100">
+                        <Trash2 size={14} className="text-red-500"/>
+                      </button>
+                    </div>
                   </div>
+                  <button
+                    onClick={() => handleStartRoutine(r)}
+                    className={`w-full rounded-xl py-3 font-bold text-sm transition-colors
+                      ${isActive
+                        ? 'bg-blue-50 text-blue-600 border border-blue-200'
+                        : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white'}`}
+                  >
+                    {isActive ? '↑ Volver al entreno' : 'Empezar Rutina'}
+                  </button>
                 </div>
-                <button
-                  onClick={() => startWorkout(r)}
-                  className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl py-3 font-bold text-sm transition-colors"
-                >
-                  Empezar Rutina
-                </button>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 
-        {logs.length > 0 && (
+        {routineModal && (
+          <RoutineModal
+            routine={routineModal === 'new' ? null : routineModal}
+            onSave={r => { onSaveRoutine(r); setRoutineModal(null) }}
+            onClose={() => setRoutineModal(null)}
+          />
+        )}
+
+        {!workoutMinimized && logs.length > 0 && (
           <div>
             <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-3">
               Últimas Sesiones
@@ -781,126 +995,230 @@ export default function WorkoutLog({ routines, logs, setLogs, setPage }) {
             </div>
           </div>
         )}
+
+        {/* Barra inferior cuando el entreno está minimizado */}
+        {workoutMinimized && (
+          <div style={{
+            position: 'fixed', bottom: 16, left: 16, right: 16, zIndex: 9999,
+            display: 'flex', alignItems: 'center', gap: 12,
+            padding: '12px 16px',
+            background: 'white',
+            borderRadius: 20,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+          }}>
+            <button
+              onClick={expandWorkout}
+              style={{ width: 36, height: 36, background: '#f1f5f9', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: 'none', cursor: 'pointer' }}
+            >
+              <ChevronUp size={19} color="#475569" />
+            </button>
+            <button
+              onClick={expandWorkout}
+              style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            >
+              <p style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', flexShrink: 0, display: 'inline-block' }} />
+                {workoutName}
+                <span style={{ fontWeight: 400, color: '#94a3b8' }}>{fmtTime(elapsed)}</span>
+              </p>
+              <p style={{ fontSize: 12, color: '#94a3b8', margin: '2px 0 0 14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {exercises.map(e => e.name).filter(Boolean).join(', ')}
+              </p>
+            </button>
+            <button
+              onClick={() => { expandWorkout(); setTimeout(() => setShowCancelConfirm(true), 100) }}
+              style={{ width: 36, height: 36, background: '#fef2f2', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: 'none', cursor: 'pointer' }}
+            >
+              <Trash2 size={16} color="#ef4444" />
+            </button>
+          </div>
+        )}
       </div>
     )
   }
 
   // ── ACTIVE ───────────────────────────────────────────────────────────────────
   return (
-    <div className="pb-28 -mx-4 sm:-mx-8">
-
-      {showPicker && <ExercisePicker onSelect={addExerciseFromPicker} onClose={() => setShowPicker(false)} />}
-
-      <PRToast toast={prToast} />
-
-      {/* Top bar */}
-      <div className="flex items-center gap-2 px-4 py-3 bg-white border-b border-slate-100 sticky top-0 z-20">
-        <button onClick={cancelWorkout} className="text-slate-500 p-1">
-          <ArrowLeft size={20} />
-        </button>
-        <span className="flex-1 font-bold text-slate-800 text-base truncate">{workoutName}</span>
-        <div className="flex items-center gap-1.5 text-slate-400 mr-2">
-          <Clock size={16} />
-          <span className="font-mono text-sm font-semibold text-slate-600">{fmtTime(elapsed)}</span>
-        </div>
-        <button
-          onClick={handleFinish}
-          className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm active:bg-blue-800"
-        >
-          Terminar
-        </button>
-      </div>
-
-      {/* Stats bar */}
-      <div className="flex items-center px-4 py-3 bg-white border-b border-slate-100 gap-6">
-        <div>
-          <div className="text-xs text-slate-400">Duración</div>
-          <div className="text-blue-600 font-bold text-sm">{fmtTime(elapsed)}</div>
-        </div>
-        <div>
-          <div className="text-xs text-slate-400">Volumen</div>
-          <div className="text-blue-600 font-bold text-sm">{volume.toLocaleString()} kg</div>
-        </div>
-        <div>
-          <div className="text-xs text-slate-400">Series</div>
-          <div className="text-blue-600 font-bold text-sm">{completedSets}</div>
-        </div>
-        <div className="flex-1" />
-        {/* Muscle silhouettes placeholder */}
-        <div className="flex gap-1 opacity-30">
-          <Dumbbell size={28} className="text-slate-600" />
-        </div>
-      </div>
-
-      {/* Exercise cards */}
-      <div className="mt-3">
-        {exercises.map((ex, ei) => (
-          <ExerciseCard
-            key={ex.id}
-            ex={ex} ei={ei}
-            doneSets={doneSets}
-            prSets={prSets}
-            note={notes[ei]}
-            logs={logs}
-            onUpdateSet={updateSet}
-            onRemoveSet={removeSet}
-            onAddSet={addSet}
-            onAddWarmup={addWarmup}
-            onToggle={toggleSet}
-            onNoteChange={(i,v) => setNotes(n => ({...n,[i]:v}))}
-            onRemove={removeExercise}
-            onNameChange={setName}
-            onMuscleChange={setMuscle}
-            onRestChange={setRestSecs}
-          />
-        ))}
-
-        <div className="px-4 mt-2 pb-4">
-          <button
-            onClick={addExercise}
-            className="w-full flex items-center gap-2 justify-center border-2 border-dashed border-slate-200 rounded-2xl py-4 text-slate-400 hover:border-blue-400 hover:text-blue-500 active:bg-blue-50 transition-colors"
-          >
-            <Plus size={16} /> Añadir ejercicio
-          </button>
-
-          <button
-            onClick={handleFinish}
-            className="w-full mt-3 py-4 bg-blue-600 text-white rounded-2xl font-bold text-base active:bg-blue-800"
-          >
-            Terminar entrenamiento
-          </button>
-        </div>
-      </div>
-
-      {/* ── Rest timer — fixed bottom ── */}
-      {restActive && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-900 text-white shadow-2xl">
-          <div className="max-w-lg mx-auto flex items-center gap-3 px-4 py-3">
-            <button
-              onClick={() => setRestRemaining(r => Math.max(0, r - 15))}
-              className="bg-slate-700 rounded-xl w-14 h-12 font-bold text-sm flex-shrink-0"
-            >
-              -15
-            </button>
-            <div className="flex-1 text-center">
-              <div className="text-xs text-slate-400 leading-none mb-0.5">Descanso</div>
-              <div className="text-4xl font-mono font-bold">{fmtTime(restRemaining)}</div>
+    <>
+      {/* Modal cancelar — fuera del overlay para no verse afectado por el transform */}
+      {showCancelConfirm && (
+        <div className="fixed inset-0 z-[80] flex items-end justify-center p-4 bg-black/40" onClick={() => setShowCancelConfirm(false)}>
+          <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="px-6 pt-7 pb-5 text-center">
+              <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <ArrowLeft size={26} className="text-red-500" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800">¿Salir del entreno?</h3>
+              <p className="text-slate-400 text-sm mt-1.5">Se perderá el progreso de esta sesión</p>
             </div>
-            <button
-              onClick={() => setRestRemaining(r => r + 15)}
-              className="bg-slate-700 rounded-xl w-14 h-12 font-bold text-sm flex-shrink-0"
-            >
-              +15
-            </button>
-            <button
-              onClick={() => { setRestActive(false); setRestRemaining(0) }}
-              className="bg-blue-600 rounded-xl px-4 h-12 font-bold text-sm flex-shrink-0"
-            >
-              Omitir
-            </button>
+            <div className="px-4 pb-5 flex flex-col gap-2">
+              <button onClick={confirmCancel}
+                className="w-full py-3.5 bg-red-500 text-white font-bold rounded-2xl text-sm active:opacity-80">
+                Salir sin guardar
+              </button>
+              <button onClick={() => setShowCancelConfirm(false)}
+                className="w-full py-3.5 bg-slate-100 text-slate-700 font-semibold rounded-2xl text-sm active:opacity-80">
+                Continuar entrenando
+              </button>
+            </div>
           </div>
         </div>
       )}
-    </div>
+
+      {/* Fondo: pantalla de selección de rutinas */}
+      <div className="space-y-5 max-w-lg pb-28">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Entrenamiento</h1>
+          <p className="text-slate-500 text-sm mt-1">Elige cómo empezar</p>
+        </div>
+        <div>
+          <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-3">
+            Mis Rutinas ({routines.length})
+          </h2>
+          <div className="space-y-3">
+            {routines.map(r => {
+              const isActive = r.id === selectedRoutineId
+              return (
+                <div key={r.id} className={`bg-white rounded-2xl shadow-sm p-4 border ${isActive ? 'border-blue-300' : 'border-slate-100'}`}>
+                  <div className="mb-3">
+                    <div className="font-semibold text-slate-800">{r.name}</div>
+                    <div className="text-xs text-slate-400 mt-0.5 line-clamp-1">{r.exercises.map(e => e.name).join(', ')}</div>
+                  </div>
+                  <button
+                    onClick={() => { if (!isActive) startWorkout(r); expandWorkout() }}
+                    className={`w-full rounded-xl py-3 font-bold text-sm transition-colors
+                      ${isActive ? 'bg-blue-50 text-blue-600 border border-blue-200' : 'bg-blue-600 text-white active:bg-blue-700'}`}
+                  >
+                    {isActive ? '↑ Volver al entreno' : 'Empezar Rutina'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Banner minimizado */}
+      {createPortal(
+        <div
+          ref={miniBarRef}
+          style={{
+            position: 'fixed', bottom: 16, left: 16, right: 16, zIndex: 9999,
+            display: 'flex', alignItems: 'center', gap: 12,
+            padding: '12px 16px',
+            background: 'red',
+            borderRadius: 20,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+            transform: 'translateY(200%)',
+          }}
+        >
+          <button onClick={expandWorkout} style={{ width: 36, height: 36, background: '#f1f5f9', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: 'none', cursor: 'pointer' }}>
+            <ChevronUp size={19} color="#475569" />
+          </button>
+          <button onClick={expandWorkout} style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', flexShrink: 0, display: 'inline-block' }} />
+              {workoutName}
+              <span style={{ fontWeight: 400, color: '#94a3b8' }}>{fmtTime(elapsed)}</span>
+            </p>
+            <p style={{ fontSize: 12, color: '#94a3b8', margin: '2px 0 0 14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {exercises.map(e => e.name).filter(Boolean).join(', ')}
+            </p>
+          </button>
+          <button
+            onClick={() => { expandWorkout(); setTimeout(() => setShowCancelConfirm(true), 100) }}
+            style={{ width: 36, height: 36, background: '#fef2f2', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: 'none', cursor: 'pointer' }}
+          >
+            <Trash2 size={16} color="#ef4444" />
+          </button>
+        </div>,
+        document.body
+      )}
+
+      {/* Overlay del entreno activo — se desliza hacia abajo al minimizar */}
+      <div
+        ref={overlayRef}
+        className="fixed inset-0 z-[60] bg-slate-100"
+        style={{
+          transform: 'translateY(0)',
+          willChange: 'transform',
+          boxShadow: '0 -8px 32px rgba(0,0,0,0.18)',
+        }}
+      >
+        <div className="h-full overflow-y-auto">
+        <div className="pb-28">
+          {showPicker && <ExercisePicker onSelect={addExerciseFromPicker} onClose={() => setShowPicker(false)} />}
+          <PRToast toast={prToast} />
+
+          {/* Top bar */}
+          <div className="flex items-center gap-2 px-4 py-3 bg-white border-b border-slate-100 sticky top-0 z-20">
+            <button
+              onClick={minimizeWorkout}
+              className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center flex-shrink-0 active:bg-slate-200"
+            >
+              <ChevronDown size={20} className="text-slate-600" />
+            </button>
+            <span className="font-bold text-slate-800 text-base truncate flex-1">{workoutName}</span>
+            <div className="flex items-center gap-1.5 text-slate-400 mr-2">
+              <Clock size={16} />
+              <span className="font-mono text-sm font-semibold text-slate-600">{fmtTime(elapsed)}</span>
+            </div>
+            <button onClick={handleFinish} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm active:bg-blue-800">
+              Terminar
+            </button>
+          </div>
+
+          {/* Stats bar */}
+          <div className="flex items-center px-4 py-3 bg-white border-b border-slate-100 gap-6">
+            <div><div className="text-xs text-slate-400">Duración</div><div className="text-blue-600 font-bold text-sm">{fmtTime(elapsed)}</div></div>
+            <div><div className="text-xs text-slate-400">Volumen</div><div className="text-blue-600 font-bold text-sm">{volume.toLocaleString()} kg</div></div>
+            <div><div className="text-xs text-slate-400">Series</div><div className="text-blue-600 font-bold text-sm">{completedSets}</div></div>
+            <div className="flex-1" />
+            <div className="flex gap-1 opacity-30"><Dumbbell size={28} className="text-slate-600" /></div>
+          </div>
+
+          {/* Exercise cards */}
+          <div className="mt-3">
+            {exercises.map((ex, ei) => (
+              <ExerciseCard
+                key={ex.id} ex={ex} ei={ei}
+                doneSets={doneSets} prSets={prSets} note={notes[ei]} logs={logs}
+                onUpdateSet={updateSet} onRemoveSet={removeSet} onAddSet={addSet}
+                onAddWarmup={addWarmup} onToggle={toggleSet}
+                onNoteChange={(i,v) => setNotes(n => ({...n,[i]:v}))}
+                onRemove={removeExercise} onNameChange={setName}
+                onMuscleChange={setMuscle} onRestChange={setRestSecs}
+              />
+            ))}
+            <div className="px-4 mt-2 pb-4">
+              <button onClick={addExercise}
+                className="w-full flex items-center gap-2 justify-center border-2 border-dashed border-slate-200 rounded-2xl py-4 text-slate-400 hover:border-blue-400 hover:text-blue-500 active:bg-blue-50 transition-colors">
+                <Plus size={16} /> Añadir ejercicio
+              </button>
+              <button onClick={handleFinish}
+                className="w-full mt-3 py-4 bg-blue-600 text-white rounded-2xl font-bold text-base active:bg-blue-800">
+                Terminar entrenamiento
+              </button>
+            </div>
+          </div>
+
+          {/* Rest timer */}
+          {restActive && (
+            <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-900 text-white shadow-2xl">
+              <div className="max-w-lg mx-auto flex items-center gap-3 px-4 py-3">
+                <button onClick={() => setRestRemaining(r => Math.max(0, r - 15))} className="bg-slate-700 rounded-xl w-14 h-12 font-bold text-sm flex-shrink-0">-15</button>
+                <div className="flex-1 text-center">
+                  <div className="text-xs text-slate-400 leading-none mb-0.5">Descanso</div>
+                  <div className="text-4xl font-mono font-bold">{fmtTime(restRemaining)}</div>
+                </div>
+                <button onClick={() => setRestRemaining(r => r + 15)} className="bg-slate-700 rounded-xl w-14 h-12 font-bold text-sm flex-shrink-0">+15</button>
+                <button onClick={() => { setRestActive(false); setRestRemaining(0) }} className="bg-blue-600 rounded-xl px-4 h-12 font-bold text-sm flex-shrink-0">Omitir</button>
+              </div>
+            </div>
+          )}
+        </div>
+        </div>
+      </div>
+    </>
   )
 }

@@ -1,6 +1,5 @@
 export const EXERCISES = [
-  { id: 'ex001', name: '21s', muscle: 'Bíceps', secondaryMuscles: [], equipment: 'Mancuerna', video: '21s.mp4', description: '', tips: [] },
-  { id: 'ex002', name: '21s Curl de Bíceps', muscle: 'Bíceps', secondaryMuscles: [], equipment: 'Mancuerna', video: '21s_Bicep_Curl.mp4', description: '', tips: [] },
+{ id: 'ex002', name: '21s Curl de Bíceps', muscle: 'Bíceps', secondaryMuscles: [], equipment: 'Mancuerna', video: '21s_Bicep_Curl.mp4', description: '', tips: [] },
   { id: 'ex003', name: 'Tijeras Abdominales', muscle: 'Core', secondaryMuscles: [], equipment: 'Peso Corporal', video: 'Ab_Scissors.mp4', description: '', tips: [] },
   { id: 'ex004', name: 'Rueda Abdominal', muscle: 'Core', secondaryMuscles: ['Hombros'], equipment: 'Peso Corporal', video: 'Ab_Wheel.mp4', description: '', tips: [] },
   { id: 'ex005', name: 'Arnold Press (Mancuerna)', muscle: 'Hombros', secondaryMuscles: ['Tríceps'], equipment: 'Mancuerna', video: 'Arnold_Press_(Dumbbell).mp4', description: '', tips: [] },

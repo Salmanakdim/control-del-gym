@@ -414,21 +414,18 @@ function RoutineModal({ routine, onSave, onClose }) {
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────
-export default function Routines({ routines, setRoutines }) {
+export default function Routines({ routines, onSaveRoutine, onDeleteRoutine }) {
   const [modal, setModal]       = useState(null)
   const [expanded, setExpanded] = useState(null)
   const [videoEx, setVideoEx]   = useState(null)
 
   const saveRoutine = (routine) => {
-    setRoutines(rs => {
-      const exists = rs.find(r => r.id === routine.id)
-      return exists ? rs.map(r => r.id === routine.id ? routine : r) : [...rs, routine]
-    })
+    onSaveRoutine(routine)
     setModal(null)
   }
 
   const deleteRoutine = (id) => {
-    if (confirm('¿Eliminar esta rutina?')) setRoutines(rs => rs.filter(r => r.id !== id))
+    if (confirm('¿Eliminar esta rutina?')) onDeleteRoutine(id)
   }
 
   return (

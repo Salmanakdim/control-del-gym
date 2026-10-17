@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Flowlyday</string>
+    <string name="title_activity_main">Flowlyday</string>
+    <string name="package_name">com.flowlyday.app</string>
+    <string name="custom_url_scheme">com.flowlyday.app</string>
+</resources>

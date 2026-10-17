@@ -1,0 +1,11 @@
+{
+  "appId": "com.flowlyday.app",
+  "appName": "Flowlyday",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

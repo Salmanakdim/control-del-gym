@@ -2,3 +2,12 @@
 dist/
 .env
 .env.local
+
+# Local Netlify folder
+.netlify
+
+# Herramientas locales (no son parte de la web)
+exercise_images/
+exercise_thumbnails_matched/
+exercise_thumbnails_unmatched/
+download_images.py
