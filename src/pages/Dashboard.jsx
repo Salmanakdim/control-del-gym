@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { usePomodoro } from '../contexts/PomodoroContext'
 import { totalVolume } from '../store/gymStore'
 import { CheckCircle2, Circle, Star, Dumbbell, Play, ChevronRight, Plus, Pencil, X } from 'lucide-react'
-import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core'
+import { DndContext, MouseSensor, TouchSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, rectSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { useQuickNav, QUICK_CATALOG } from '../lib/quickNav'
 import { CSS } from '@dnd-kit/utilities'
@@ -85,7 +85,8 @@ function SortableBlock({ id, children }) {
   return (
     <div ref={setNodeRef} {...attributes} {...listeners}
       // No arrastrar al pulsar dentro de un campo de texto (p. ej. editando el foco)
-      onPointerDown={e => { if (!e.target.closest('input, textarea')) listeners?.onPointerDown?.(e) }}
+      onMouseDown={e => { if (!e.target.closest('input, textarea')) listeners?.onMouseDown?.(e) }}
+      onTouchStart={e => { if (!e.target.closest('input, textarea')) listeners?.onTouchStart?.(e) }}
       onContextMenu={e => e.preventDefault()}
       className={`select-none rounded-3xl ${isDragging ? 'relative z-20 scale-[1.02] shadow-2xl ring-2 ring-blue-400 opacity-95' : ''}`}
       style={{ transform: CSS.Transform.toString(transform), transition, WebkitTouchCallout: 'none' }}>
@@ -100,7 +101,8 @@ function SortableTile({ id, onOpen }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
   return (
     <button ref={setNodeRef} {...attributes} {...listeners}
-      onPointerDown={e => { e.stopPropagation(); listeners?.onPointerDown?.(e) }}
+      onMouseDown={e => { e.stopPropagation(); listeners?.onMouseDown?.(e) }}
+      onTouchStart={e => { e.stopPropagation(); listeners?.onTouchStart?.(e) }}
       onContextMenu={e => e.preventDefault()}
       onClick={() => onOpen(id)}
       className={`flex flex-col items-center gap-2 py-4 rounded-2xl select-none transition-shadow
@@ -139,7 +141,11 @@ export default function Dashboard({ logs, routines, setPage, onStartRoutine }) {
     if (!over || active.id === over.id) return
     quick.setAll(arrayMove(quick.ids, quick.ids.indexOf(active.id), quick.ids.indexOf(over.id)))
   }
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { delay: 300, tolerance: 5 } }))
+  // TouchSensor bloquea el scroll del navegador una vez levantada la caja (PointerSensor no lo hace en móvil)
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { delay: 300, tolerance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 8 } }),
+  )
 
   function handleDragEnd({ active, over }) {
     if (!over || active.id === over.id) return
