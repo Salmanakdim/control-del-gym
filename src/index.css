@@ -24,3 +24,11 @@ body { margin: 0; font-family: 'Inter', system-ui, sans-serif; background: #f1f5
 .check-pop  { animation: check-pop  0.65s cubic-bezier(.36,.07,.19,.97) forwards; }
 .check-ring { animation: check-ring 0.7s ease-out forwards; }
 .check-dot  { animation: check-dot  0.65s ease-out forwards; }
+
+/* Camino al éxito */
+@keyframes stairs-hop { 0% { transform: translateY(0) } 35% { transform: translateY(-10px) } 70% { transform: translateY(1px) } 100% { transform: translateY(0) } }
+.stairs-hop { animation: stairs-hop 0.6s ease-out; }
+@keyframes exito-pulse { 0%,100% { opacity: 1 } 50% { opacity: .75 } }
+.exito-pulse { animation: exito-pulse 1.6s ease-in-out infinite; }
+@keyframes exito-spark { 0%,100% { opacity: 0; transform: scale(.6) } 50% { opacity: 1; transform: scale(1.1) } }
+.exito-spark { animation: exito-spark 1.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }

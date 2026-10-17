@@ -7,6 +7,7 @@ import { CheckCircle2, Circle, Star, Dumbbell, Play, ChevronRight, Plus, Pencil,
 import { DndContext, MouseSensor, TouchSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, rectSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { useQuickNav, QUICK_CATALOG } from '../lib/quickNav'
+import SuccessStairs from '../components/SuccessStairs'
 import { CSS } from '@dnd-kit/utilities'
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -115,11 +116,17 @@ function SortableTile({ id, onOpen }) {
 }
 
 const ORDER_KEY     = 'fwd_dash_order'
-const DEFAULT_ORDER = ['focus', 'events', 'habits', 'myday', 'gym', 'quick']
+const DEFAULT_ORDER = ['focus', 'events', 'success', 'habits', 'myday', 'gym', 'quick']
 function loadOrder() {
   try {
-    const saved = JSON.parse(localStorage.getItem(ORDER_KEY) || '[]').filter(id => DEFAULT_ORDER.includes(id))
-    return [...saved, ...DEFAULT_ORDER.filter(id => !saved.includes(id))]
+    const order = JSON.parse(localStorage.getItem(ORDER_KEY) || '[]').filter(id => DEFAULT_ORDER.includes(id))
+    // Bloques nuevos: se colocan delante del siguiente bloque por defecto que ya exista
+    DEFAULT_ORDER.forEach((id, i) => {
+      if (order.includes(id)) return
+      const next = DEFAULT_ORDER.slice(i + 1).find(x => order.includes(x))
+      order.splice(next ? order.indexOf(next) : order.length, 0, id)
+    })
+    return order
   } catch { return DEFAULT_ORDER }
 }
 
@@ -499,7 +506,13 @@ export default function Dashboard({ logs, routines, setPage, onStartRoutine }) {
       </div>
       )
 
-  const blocks  = { focus: block_focus, events: block_events, habits: block_habits, myday: block_myday, gym: block_gym, quick: block_quick }
+  const block_success = !loading && (
+    <SuccessStairs
+      done={completedHab + (focusText && focusDone ? 1 : 0)}
+      total={totalHab + (focusText ? 1 : 0)}/>
+  )
+
+  const blocks  = { focus: block_focus, success: block_success, events: block_events, habits: block_habits, myday: block_myday, gym: block_gym, quick: block_quick }
   const visible = order.filter(id => blocks[id])
 
   return (
