@@ -63,7 +63,8 @@ function MonthCalendar({ reviews, date, onSelect, view, setView }) {
   const byDate = Object.fromEntries(reviews.map(r => [r.date, r]))
   const today  = todayStr()
   const days   = monthDays(view.y, view.m)
-  const title  = new Date(view.y, view.m, 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
+  const raw    = new Date(view.y, view.m, 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
+  const title  = raw.charAt(0).toUpperCase() + raw.slice(1)
   const isCurrentMonth = view.y === new Date().getFullYear() && view.m === new Date().getMonth()
 
   function move(delta) {
@@ -78,7 +79,7 @@ function MonthCalendar({ reviews, date, onSelect, view, setView }) {
           className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-500 active:bg-slate-100">
           <ChevronLeft size={18}/>
         </button>
-        <p className="text-sm font-black text-slate-700 capitalize">{title}</p>
+        <p className="text-sm font-black text-slate-700">{title}</p>
         <button onClick={() => move(1)} disabled={isCurrentMonth}
           className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-500 active:bg-slate-100 disabled:opacity-20">
           <ChevronRight size={18}/>
@@ -141,7 +142,7 @@ function Section({ cfg, items, onAdd, onRemove }) {
               <span className="text-slate-300 text-sm mt-0.5">•</span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap">{itemText(it)}</p>
-                {it.at && <p className="text-[10px] text-slate-400 font-semibold">{fmtStamp(it.at)}</p>}
+                {typeof it === 'object' && it.at && <p className="text-[10px] text-slate-400 font-semibold">{fmtStamp(it.at)}</p>}
               </div>
               <button onClick={() => onRemove(i)}
                 className="w-6 h-6 flex-shrink-0 rounded-lg flex items-center justify-center text-slate-300 hover:text-red-500 active:bg-slate-100">
@@ -248,7 +249,7 @@ export default function Revision() {
           </div>
           <ul className="space-y-1">
             {yesterday.improve.map((it, i) => (
-              <li key={i} className="text-sm text-amber-800 font-medium">• {it}</li>
+              <li key={i} className="text-sm text-amber-800 font-medium">• {itemText(it)}</li>
             ))}
           </ul>
         </div>
