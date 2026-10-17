@@ -7,7 +7,7 @@ import { CheckCircle2, Circle, Star, Dumbbell, Play, ChevronRight, Plus, Pencil,
 import { DndContext, MouseSensor, TouchSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, rectSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { useQuickNav, QUICK_CATALOG } from '../lib/quickNav'
-import SuccessStairs from '../components/SuccessStairs'
+import SuccessPath from '../components/SuccessPath'
 import { CSS } from '@dnd-kit/utilities'
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -507,9 +507,12 @@ export default function Dashboard({ logs, routines, setPage, onStartRoutine }) {
       )
 
   const block_success = !loading && (
-    <SuccessStairs
-      done={completedHab + (focusText && focusDone ? 1 : 0)}
-      total={totalHab + (focusText ? 1 : 0)}/>
+    <SuccessPath
+      items={[
+        ...(focusText ? [{ id: '__focus', icon: '🎯', label: 'Foco del día', done: focusDone }] : []),
+        ...habits.map(h => ({ id: h.id, icon: h.icon || '⭐', label: h.name, done: todayLogs.has(h.id) })),
+      ]}
+      onToggle={id => id === '__focus' ? toggleFocusDone() : toggleHabit(id)}/>
   )
 
   const blocks  = { focus: block_focus, success: block_success, events: block_events, habits: block_habits, myday: block_myday, gym: block_gym, quick: block_quick }
