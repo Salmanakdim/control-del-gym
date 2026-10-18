@@ -145,11 +145,12 @@ export function InlinePage({ link, item, onDone, onClose }) {
 const BREAK_KEY = 'fwd_break_end'
 function fmt(sec) { return `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}` }
 
-export function ChestSheet({ rewards, breakMin, alreadyOpen, onOpened, onClose }) {
+export function ChestSheet({ rewards, assigned, breakMin, alreadyOpen, onOpened, onClose }) {
   const pick = () => rewards.length ? rewards[Math.floor(Math.random() * rewards.length)] : '😌 Descansar un poco'
   const [opened, setOpened] = useState(alreadyOpen)
   const [opening, setOpening] = useState(false)
-  const [reward, setReward] = useState(pick)
+  // Empieza por la recompensa asignada al cofre (si la hay); "Otra recompensa" sigue funcionando
+  const [reward, setReward] = useState(() => assigned || pick())
   const [endAt, setEndAt] = useState(() => {
     try { const v = Number(localStorage.getItem(BREAK_KEY)); return v > Date.now() ? v : null } catch { return null }
   })
@@ -222,7 +223,10 @@ export function ChestSheet({ rewards, breakMin, alreadyOpen, onOpened, onClose }
             ) : (
               <>
                 <h2 className="mt-2 text-2xl font-black text-slate-800">{reward}</h2>
-                <button onClick={() => setReward(pick())}
+                <button onClick={() => setReward(cur => {
+                  const others = rewards.filter(r => r !== cur)   // siempre una distinta
+                  return others.length ? others[Math.floor(Math.random() * others.length)] : cur
+                })}
                   className="mt-3 flex items-center gap-1.5 text-xs font-bold text-slate-400 active:text-slate-600">
                   <Shuffle size={13} /> Otra recompensa
                 </button>
@@ -241,7 +245,7 @@ export function ChestSheet({ rewards, breakMin, alreadyOpen, onOpened, onClose }
 
 // ── Personalizar camino ────────────────────────────────────────────
 // Fila de la lista "Orden y lugar": se arrastra desde el asa ⠿; el lápiz abre el editor
-function OrderRow({ node, setLink, onEdit, onHide, onDelete }) {
+function OrderRow({ node, setLink, onEdit, onHide, onDelete, rewards, chestReward, onChestReward }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: node.id })
   const [open, setOpen]       = useState(false)
   const [icon, setIcon]       = useState(node.icon || '⭐')
@@ -269,6 +273,13 @@ function OrderRow({ node, setLink, onEdit, onHide, onDelete }) {
           <select value={node.link} onChange={e => setLink(node.id, e.target.value)}
             className="w-32 bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 text-xs font-bold text-slate-600">
             {Object.entries(PATH_LINKS).map(([id, l]) => <option key={id} value={id}>{l.emoji} {l.label}</option>)}
+          </select>
+        )}
+        {isChest && (
+          <select value={chestReward || ''} onChange={e => onChestReward(node.id, e.target.value)} aria-label="Recompensa del cofre"
+            className="w-32 bg-amber-50 border border-amber-200 rounded-xl px-2 py-2 text-xs font-bold text-amber-800">
+            <option value="">🎲 Al azar</option>
+            {rewards.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
         )}
         {isChest ? (
@@ -453,7 +464,9 @@ export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSa
           <div className="space-y-1">
             {listIds.filter(id => byId[id]).map(id => (
               <OrderRow key={id} node={byId[id]} setLink={setLink}
-                onEdit={onEditStop} onHide={toggleHidden} onDelete={onDeleteStop} />
+                onEdit={onEditStop} onHide={toggleHidden} onDelete={onDeleteStop}
+                rewards={config.rewards} chestReward={config.rewards.includes(config.chestRewards?.[id]) ? config.chestRewards[id] : ''}
+                onChestReward={(cid, r) => save({ chestRewards: { ...(config.chestRewards || {}), [cid]: r || undefined } })} />
             ))}
           </div>
         </SortableContext>

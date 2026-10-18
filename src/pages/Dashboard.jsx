@@ -338,6 +338,7 @@ export default function Dashboard({ logs, setPage }) {
       {chestSheet && (
         <ChestSheet
           rewards={config.rewards}
+          assigned={config.rewards.includes(config.chestRewards?.[chestSheet.k]) ? config.chestRewards[chestSheet.k] : null}
           breakMin={config.breakMin}
           alreadyOpen={chestSheet.alreadyOpen}
           onOpened={() => markOpened(chestSheet.k)}
