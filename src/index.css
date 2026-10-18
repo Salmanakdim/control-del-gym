@@ -32,10 +32,6 @@ p.duo-bounce { animation-name: duo-bounce-y; }
 @keyframes duo-bounce-y { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-4px) } }
 @keyframes duo-pop { 0% { transform: scale(.6) } 60% { transform: scale(1.15) } 100% { transform: scale(1) } }
 .duo-pop { animation: duo-pop .45s cubic-bezier(.34,1.56,.64,1); }
-@keyframes duo-idle { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-3px) } }
-.duo-idle { animation: duo-idle 1.6s ease-in-out infinite; }
-@keyframes duo-cheer { 0%,100% { transform: translateY(0) rotate(0) } 25% { transform: translateY(-8px) rotate(-6deg) } 75% { transform: translateY(-8px) rotate(6deg) } }
-.duo-cheer { animation: duo-cheer .9s ease-in-out infinite; }
 @keyframes duo-glow { 0%,100% { filter: drop-shadow(0 0 6px #facc15) } 50% { filter: drop-shadow(0 0 18px #facc15) } }
 .duo-glow { animation: duo-glow 1.6s ease-in-out infinite; }
 @keyframes duo-wiggle { 0%,100% { transform: rotate(0) } 20% { transform: rotate(-7deg) } 40% { transform: rotate(7deg) } 60% { transform: rotate(-4deg) } 80% { transform: rotate(0) } }
@@ -46,3 +42,15 @@ p.duo-bounce { animation-name: duo-bounce-y; }
 .reward-pop { animation: reward-pop .6s cubic-bezier(.34,1.56,.64,1); }
 @keyframes sheet-up { from { transform: translateY(100%) } to { transform: translateY(0) } }
 .sheet-up { animation: sheet-up .28s cubic-bezier(.2,.9,.3,1); }
+
+/* Flowy, la mascota */
+@keyframes flowy-sway  { 0%,100% { transform: rotate(-3deg) } 50% { transform: rotate(3deg) } }
+@keyframes flowy-blink { 0%,92%,100% { transform: scaleY(1) } 95% { transform: scaleY(.1) } }
+@keyframes flowy-hop   { 0%,100% { transform: translateY(0) scale(1,1) } 15% { transform: translateY(0) scale(1.08,.9) } 45% { transform: translateY(-16px) scale(.95,1.06) } 75% { transform: translateY(0) scale(1.05,.95) } }
+@keyframes flowy-party { 0%,100% { transform: translateY(0) rotate(-4deg) } 50% { transform: translateY(-8px) rotate(4deg) } }
+@keyframes flowy-conf  { 0%,100% { opacity: .2; transform: translateY(4px) rotate(0) } 50% { opacity: 1; transform: translateY(-4px) rotate(40deg) } }
+.flowy-sway  { animation: flowy-sway 2.4s ease-in-out infinite; transform-origin: 60px 116px; }
+.flowy-blink { animation: flowy-blink 4s infinite; transform-box: fill-box; transform-origin: center; }
+.flowy-hop   { animation: flowy-hop 1s cubic-bezier(.3,1.6,.6,1) infinite; transform-origin: 60px 116px; }
+.flowy-party { animation: flowy-party .9s ease-in-out infinite; transform-origin: 60px 116px; }
+.flowy-conf  { animation: flowy-conf 1.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }

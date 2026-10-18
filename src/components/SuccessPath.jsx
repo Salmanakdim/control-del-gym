@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import Flowy from './Flowy'
 import { Settings } from 'lucide-react'
 import { DndContext, MouseSensor, TouchSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
@@ -23,26 +24,6 @@ const ROW = 96
 const GREEN  = { bg: '#58cc02', shadow: '#46a302' }
 const GREY   = { bg: '#e2e8f0', shadow: '#cbd5e1' }
 const GOLD   = { bg: '#ffc800', shadow: '#e0a800' }
-
-function Mascot({ win }) {
-  return (
-    <svg width="44" height="60" viewBox="-22 -46 44 52" className={win ? 'duo-cheer' : 'duo-idle'}>
-      <g stroke="#334155" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none">
-        <circle cx="0" cy="-34" r="8" fill="white" />
-        <line x1="0" y1="-26" x2="0" y2="-10" />
-        {win ? (
-          <><line x1="0" y1="-22" x2="-10" y2="-36" /><line x1="0" y1="-22" x2="10" y2="-36" /></>
-        ) : (
-          <><line x1="0" y1="-21" x2="-9" y2="-14" /><line x1="0" y1="-21" x2="9" y2="-14" /></>
-        )}
-        <line x1="0" y1="-10" x2="-7" y2="2" />
-        <line x1="0" y1="-10" x2="7" y2="2" />
-      </g>
-      <circle cx="-3" cy="-35" r="1.4" fill="#334155" />
-      <circle cx="3" cy="-35" r="1.4" fill="#334155" />
-    </svg>
-  )
-}
 
 function Bubble({ title, subtitle, color = '#58cc02' }) {
   return (
@@ -88,6 +69,20 @@ export default function SuccessPath({ items, chests, openedChests, onOpenStop, o
   const ordered = items   // el orden lo elige el usuario
   const done    = ordered.filter(i => i.done).length
   const curIdx  = ordered.findIndex(i => !i.done)   // primera parada pendiente
+
+  // Ánimo de Flowy: salta al completar una parada; si pasa un rato sin avanzar, "¡vamos!"
+  const [mood, setMood] = useState('idle')
+  const prevDone = useRef(done)
+  useEffect(() => {
+    const timers = []
+    if (done > prevDone.current) {
+      timers.push(setTimeout(() => setMood('hop'), 0))
+      timers.push(setTimeout(() => setMood('idle'), 1200))
+    }
+    prevDone.current = done
+    timers.push(setTimeout(() => setMood('push'), 90 * 1000))
+    return () => timers.forEach(clearTimeout)
+  }, [done])
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { delay: 300, tolerance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 8 } }),
@@ -142,8 +137,8 @@ export default function SuccessPath({ items, chests, openedChests, onOpenStop, o
             <Round colors={win ? GOLD : GREY} dim={!win} size={80} label="Éxito">🏆</Round>
           </div>
           {win && (
-            <div className="absolute bottom-0" style={{ left: '100%', marginLeft: 18 }}>
-              <Mascot win />
+            <div className="absolute bottom-0" style={{ left: '100%', marginLeft: 10 }}>
+              <Flowy mood="win" size={64} />
             </div>
           )}
         </div>
@@ -192,8 +187,8 @@ export default function SuccessPath({ items, chests, openedChests, onOpenStop, o
                   <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-white text-[#58cc02] text-[11px] font-black flex items-center justify-center shadow">✓</span>
                 )}
                 {isCurrent && (
-                  <div className="absolute top-0" style={x > 0 ? { right: '100%', marginRight: 22 } : { left: '100%', marginLeft: 22 }}>
-                    <Mascot />
+                  <div className="absolute -top-2" style={x > 0 ? { right: '100%', marginRight: 16 } : { left: '100%', marginLeft: 16 }}>
+                    <Flowy mood={mood} size={60} />
                   </div>
                 )}
               </div>
