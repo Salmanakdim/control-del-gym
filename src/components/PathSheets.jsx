@@ -266,11 +266,12 @@ function OrderRow({ node, setLink }) {
   )
 }
 
-export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSaveOrder, onAddPrayers, hasPrayers, onClose }) {
+export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSaveOrder, onAddChest, onAddPrayers, hasPrayers, onClose }) {
   // Orden en borrador: se ve como en el camino (arriba = final del camino)
   const savedIds = [...sequence].reverse().map(n => n.id)
   const [orderDraft, setOrderDraft] = useState(null)
-  const listIds  = orderDraft || savedIds
+  // Lo añadido mientras hay un borrador aparece arriba (final del camino)
+  const listIds  = orderDraft ? [...savedIds.filter(id => !orderDraft.includes(id)), ...orderDraft] : savedIds
   const byId     = Object.fromEntries(sequence.map(n => [n.id, n]))
   const sensors  = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
   function handleDragEnd({ active, over }) {
@@ -314,7 +315,7 @@ export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSa
 
       {/* Paradas */}
       <p className="mt-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">🛤️ Paradas</p>
-      <p className="text-xs text-slate-500 mt-1 mb-3">Oculta las que no quieras en el camino o añade las tuyas</p>
+      <p className="text-xs text-slate-500 mt-1 mb-3">Oculta las que no quieras en el camino (las tuyas se añaden más abajo)</p>
       <div className="space-y-2">
         {stops.map(st => (
           <div key={st.id} className={`flex items-center gap-2 rounded-xl px-3 py-2 ${st.hidden ? 'bg-slate-50 opacity-50' : 'bg-slate-50'}`}>
@@ -337,24 +338,6 @@ export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSa
             )}
           </div>
         ))}
-      </div>
-      <div className="mt-3 bg-blue-50 rounded-2xl p-3 space-y-2">
-        <p className="text-xs font-black text-blue-700">＋ Añadir parada</p>
-        <div className="flex gap-2">
-          <input value={stopIcon} onChange={e => setStopIcon(e.target.value)} maxLength={4} aria-label="Emoji"
-            className="w-12 text-center border border-slate-200 rounded-xl py-2.5 text-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          <input value={stopName} onChange={e => setStopName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addStop()}
-            placeholder="Ej: Leer 10 páginas"
-            className="flex-1 min-w-0 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-        <div className="flex gap-2">
-          <select value={stopLink} onChange={e => setStopLink(e.target.value)}
-            className="flex-1 min-w-0 bg-white border border-slate-200 rounded-xl px-2 py-2.5 text-xs font-bold text-slate-600">
-            {Object.entries(PATH_LINKS).map(([id, l]) => <option key={id} value={id}>{l.emoji} {l.label}</option>)}
-          </select>
-          <button onClick={addStop} disabled={!stopName.trim()}
-            className="px-4 rounded-xl bg-blue-600 text-white text-sm font-black disabled:opacity-30">Añadir</button>
-        </div>
       </div>
       {!hasPrayers && (
         <button onClick={onAddPrayers}
@@ -419,11 +402,34 @@ export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSa
           </div>
         </SortableContext>
       </DndContext>
+      <div className="mt-3 bg-blue-50 rounded-2xl p-3 space-y-2">
+        <p className="text-xs font-black text-blue-700">＋ Añadir parada</p>
+        <div className="flex gap-2">
+          <input value={stopIcon} onChange={e => setStopIcon(e.target.value)} maxLength={4} aria-label="Emoji"
+            className="w-12 text-center border border-slate-200 rounded-xl py-2.5 text-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <input value={stopName} onChange={e => setStopName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addStop()}
+            placeholder="Ej: Leer 10 páginas"
+            className="flex-1 min-w-0 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div className="flex gap-2">
+          <select value={stopLink} onChange={e => setStopLink(e.target.value)}
+            className="flex-1 min-w-0 bg-white border border-slate-200 rounded-xl px-2 py-2.5 text-xs font-bold text-slate-600">
+            {Object.entries(PATH_LINKS).map(([id, l]) => <option key={id} value={id}>{l.emoji} {l.label}</option>)}
+          </select>
+          <button onClick={addStop} disabled={!stopName.trim()}
+            className="px-4 rounded-xl bg-blue-600 text-white text-sm font-black disabled:opacity-30">Añadir</button>
+        </div>
+        <button onClick={onAddChest}
+          className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-black text-amber-900"
+          style={{ background: '#ffc800', boxShadow: '0 3px 0 #e0a800' }}>
+          ＋ 🎁 Añadir cofre
+        </button>
+      </div>
       {orderDraft && (
         <div className="sticky bottom-0 mt-3 -mx-1 flex gap-2 bg-white/95 backdrop-blur py-2">
           <button onClick={() => setOrderDraft(null)}
             className="flex-1 py-3 rounded-2xl text-sm font-black bg-slate-100 text-slate-500">Cancelar</button>
-          <button onClick={() => { onSaveOrder([...orderDraft].reverse()); setOrderDraft(null) }}
+          <button onClick={() => { onSaveOrder([...listIds].reverse()); setOrderDraft(null) }}
             className="flex-1 py-3 rounded-2xl text-sm font-black text-white bg-blue-600 shadow-[0_4px_0_#1d4ed8]">Guardar orden</button>
         </div>
       )}
