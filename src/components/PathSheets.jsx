@@ -327,17 +327,15 @@ function OrderRow({ node, setLink, onEdit, onHide, onDelete }) {
   )
 }
 
-export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSaveOrder, onAddChest, onEditStop, onDeleteStop, onAddPrayers, hasPrayers, onClose }) {
-  // Orden en borrador: se ve como en el camino (arriba = final del camino)
-  const savedIds = [...sequence].reverse().map(n => n.id)
-  const [orderDraft, setOrderDraft] = useState(null)
-  // Lo añadido mientras hay un borrador aparece arriba (final del camino)
-  const listIds  = orderDraft ? [...savedIds.filter(id => !orderDraft.includes(id)), ...orderDraft] : savedIds
+export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSaveOrder, onAddChest, onEditStop, onDeleteStop, onAddPrayers, hasPrayers, dirty, onSaveAll, onClose }) {
+  // Se ve como en el camino (arriba = final del camino)
+  const listIds  = [...sequence].reverse().map(n => n.id)
+  const [askDiscard, setAskDiscard] = useState(false)
   const byId     = Object.fromEntries(sequence.map(n => [n.id, n]))
   const sensors  = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
   function handleDragEnd({ active, over }) {
     if (!over || active.id === over.id) return
-    setOrderDraft(arrayMove(listIds, listIds.indexOf(active.id), listIds.indexOf(over.id)))
+    onSaveOrder(arrayMove(listIds, listIds.indexOf(active.id), listIds.indexOf(over.id)).reverse())
   }
   const [newReward, setNewReward] = useState('')
   const [stopIcon, setStopIcon]   = useState('⭐')
@@ -363,9 +361,12 @@ export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSa
     setStopName(''); setStopIcon('⭐'); setStopLink('none')
   }
 
+  const tryClose = () => (dirty ? setAskDiscard(true) : onClose())
+
   return (
-    <Sheet onClose={onClose}>
+    <Sheet onClose={tryClose}>
       <h2 className="text-xl font-black text-slate-800">Personalizar camino</h2>
+      <p className="text-xs text-slate-500 mt-1">Nada cambia en el camino hasta que pulses Guardar cambios.</p>
 
       {/* Paradas */}
       <p className="mt-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">🛤️ Paradas</p>
@@ -480,14 +481,30 @@ export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSa
           ＋ 🎁 Añadir cofre
         </button>
       </div>
-      {orderDraft && (
-        <div className="sticky bottom-0 mt-3 -mx-1 flex gap-2 bg-white/95 backdrop-blur py-2">
-          <button onClick={() => setOrderDraft(null)}
-            className="flex-1 py-3 rounded-2xl text-sm font-black bg-slate-100 text-slate-500">Cancelar</button>
-          <button onClick={() => { onSaveOrder([...listIds].reverse()); setOrderDraft(null) }}
-            className="flex-1 py-3 rounded-2xl text-sm font-black text-white bg-blue-600 shadow-[0_4px_0_#1d4ed8]">Guardar orden</button>
-        </div>
-      )}
+      {/* Guardar / descartar todos los cambios */}
+      <div className="sticky -mx-5 mt-6 px-5 pt-3 bg-white border-t border-slate-100"
+        style={{ bottom: 'calc(-2rem - env(safe-area-inset-bottom))', paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
+        {askDiscard ? (
+          <div>
+            <p className="text-xs font-bold text-slate-600 text-center mb-2">Tienes cambios sin guardar. ¿Descartarlos?</p>
+            <div className="flex gap-2">
+              <button onClick={() => setAskDiscard(false)}
+                className="flex-1 py-3 rounded-2xl text-sm font-black bg-slate-100 text-slate-600">Seguir editando</button>
+              <button onClick={onClose}
+                className="flex-1 py-3 rounded-2xl text-sm font-black text-white bg-red-500">Descartar</button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <button onClick={onClose}
+              className="flex-1 py-3 rounded-2xl text-sm font-black bg-slate-100 text-slate-500">Cancelar</button>
+            <button onClick={onSaveAll} disabled={!dirty}
+              className="flex-1 py-3 rounded-2xl text-sm font-black text-white bg-blue-600 shadow-[0_4px_0_#1d4ed8] disabled:opacity-40 disabled:shadow-none">
+              Guardar cambios
+            </button>
+          </div>
+        )}
+      </div>
     </Sheet>
   )
 }

@@ -4,7 +4,8 @@ import { useAuth } from '../contexts/AuthContext'
 import { usePomodoro } from '../contexts/PomodoroContext'
 import SuccessPath from '../components/SuccessPath'
 import { StopSheet, InlinePage, ChestSheet, PathSettingsSheet } from '../components/PathSheets'
-import { usePathConfig, guessLink, PATH_LINKS, readOpenedChests, writeOpenedChests, todayKey, PRAYERS, STOP_COLORS, newId } from '../lib/pathConfig'
+import { usePathConfig, PATH_LINKS, readOpenedChests, writeOpenedChests, todayKey, PRAYERS, newId } from '../lib/pathConfig'
+import { buildPath } from '../lib/pathModel'
 
 // ── Helpers ────────────────────────────────────────────────────────
 function todayStr() { return new Date().toISOString().split('T')[0] }
@@ -120,116 +121,103 @@ export default function Dashboard({ logs, setPage }) {
   }
 
   // ── Camino ────────────────────────────────────────────────────────
-  // Modo editar: los cambios (orden, colores, cofres) van a un borrador hasta pulsar Guardar
+  // Modo editar del camino: orden, colores y cofres van a un borrador hasta pulsar Guardar
   const [draft, setDraft] = useState(null)
-  const cfg = draft ? { ...config, ...draft } : config
+  const cfg  = draft ? { ...config, ...draft } : config
+  const path = buildPath({ config: cfg, habits, todayLogs, focusText, focusDone })
+  const { custom, customDone, linkOf, sequence, chestList, legacyChests, colorsOf } = path
+  const items = path.stops
+
   function updateLayout(changes) {
     if (draft) setDraft(d => ({ ...d, ...changes }))
     else saveConfig(changes)
   }
-
-  const hidden     = config.hidden || []
-  const custom     = config.custom || []
-  const customDone = config.customDone?.date === todayKey() ? config.customDone.ids : []
-
-  // Dónde se hace cada parada (hábito: elegido o adivinado por el nombre; propia: la suya)
-  function linkOf(id) {
-    const c = custom.find(x => x.id === id)
-    if (c) return c.link || 'none'
-    const h = habits.find(x => x.id === id)
-    return h ? (config.links[id] || guessLink(h.name)) : 'none'
+  function addChest() {
+    const id = newId('chest_')
+    updateLayout({ chestList: [...chestList, id], order: [...sequence.map(n => n.id), id] })
+  }
+  function deleteChest(id) {
+    updateLayout({ chestList: chestList.filter(c => c !== id), order: sequence.map(n => n.id).filter(x => x !== id) })
   }
   function setLink(id, link) {
     if (custom.some(x => x.id === id)) saveConfig({ custom: custom.map(x => x.id === id ? { ...x, link } : x) })
     else saveConfig({ links: { ...config.links, [id]: link } })
   }
 
-  // Todas las paradas posibles; el camino muestra las no ocultas
-  const allStops = [
-    { id: '__focus', icon: '🎯', label: focusText ? `Foco: ${focusText}` : 'Foco del día', done: !!focusText && focusDone, kind: 'focus' },
-    ...habits.map(h => ({ id: h.id, icon: h.icon || '⭐', label: h.name, done: todayLogs.has(h.id), kind: 'habit' })),
-    ...custom.map(c => ({ id: c.id, icon: c.icon || '⭐', label: c.label, done: customDone.includes(c.id), kind: 'custom' })),
-  ]
-  // Paradas visibles con sus acciones
-  const stops = allStops.filter(s => !hidden.includes(s.id)).map(s => ({
-    ...s,
-    type: 'stop',
-    canDo: s.kind !== 'focus' && linkOf(s.id) !== 'none',   // se hace dentro de la app → ▶
-    canCheck: s.kind !== 'focus' || !!focusText,           // el foco necesita estar escrito
-  }))
+  // ── Personalizar: todo va a un borrador (config + hábitos) hasta "Guardar cambios" ──
+  const [sDraft, setSDraft] = useState(null)   // { config, habits, ops: [cambios de hábitos], dirty }
+  const sp = sDraft && buildPath({ config: sDraft.config, habits: sDraft.habits, todayLogs, focusText, focusDone })
 
-  // Cofres: lista propia; los antiguos (por número de parada) se convierten la primera vez
-  const legacyChests = !cfg.chestList
-  const chestList    = cfg.chestList || (cfg.chests || []).map(k => `chest_${k}`)
-
-  // Secuencia de abajo a arriba según el orden guardado; lo nuevo va al final (arriba)
-  const order = cfg.order || []
-  const sortedStops = [...stops].sort((a, b) => {
-    const ra = order.indexOf(a.id), rb = order.indexOf(b.id)
-    return (ra === -1 ? 1e6 + allStops.indexOf(a) : ra) - (rb === -1 ? 1e6 + allStops.indexOf(b) : rb)
-  })
-  const sequence = [...sortedStops]
-  chestList.forEach(id => {
-    const r = order.indexOf(id)
-    let at
-    if (r !== -1) {
-      at = sequence.findIndex(n => { const rn = order.indexOf(n.id); return rn !== -1 && rn > r })
-    } else if (legacyChests) {
-      const k = Number(id.split('_')[1]) || 0                                       // después de la parada nº k
-      let seen = 0
-      at = sequence.findIndex(n => n.type === 'stop' && ++seen > k)
-    } else at = -1
-    sequence.splice(at === -1 ? sequence.length : at, 0, { type: 'chest', id })
-  })
-  const items = sortedStops
-
-  function colorsOf(id) {
-    return STOP_COLORS[cfg.colors?.[id]] || STOP_COLORS.green
+  function openSettings() {
+    setSDraft({ config: { ...config, chestList, order: sequence.map(n => n.id) }, habits: [...habits], ops: [], dirty: false })
+    setShowSettings(true)
   }
-  function addChest() {
+  function sSet(changes) {
+    setSDraft(d => ({ ...d, dirty: true, config: { ...d.config, ...changes } }))
+  }
+  function sSetLink(id, link) {
+    const c = sDraft.config
+    if ((c.custom || []).some(x => x.id === id)) sSet({ custom: c.custom.map(x => x.id === id ? { ...x, link } : x) })
+    else sSet({ links: { ...(c.links || {}), [id]: link } })
+  }
+  function sAddChest() {
     const id = newId('chest_')
-    updateLayout({ chestList: [...chestList, id], order: [...sequence.map(n => n.id), id] })
+    sSet({ chestList: [...sp.chestList, id], order: [...sp.sequence.map(n => n.id), id] })
   }
-  // Editar nombre/emoji: paradas propias en la config; hábitos en su tabla de Supabase
-  async function editStop(id, { icon, label }) {
-    if (custom.some(c => c.id === id)) {
-      return saveConfig({ custom: custom.map(c => c.id === id ? { ...c, icon, label } : c) })
-    }
-    setHabits(prev => prev.map(h => h.id === id ? { ...h, icon, name: label } : h))
-    await supabase.from('habits').update({ icon, name: label }).eq('id', id).eq('user_id', user.id)
+  function sEditStop(id, { icon, label }) {
+    const c = sDraft.config
+    if ((c.custom || []).some(x => x.id === id)) return sSet({ custom: c.custom.map(x => x.id === id ? { ...x, icon, label } : x) })
+    setSDraft(d => ({
+      ...d, dirty: true,
+      habits: d.habits.map(h => h.id === id ? { ...h, icon, name: label } : h),
+      ops: [...d.ops, { type: 'update', id, icon, name: label }],
+    }))
   }
-
-  // Borrar: cofre, parada propia o hábito (este último con su historial)
-  async function deleteStop(id) {
-    if (chestList.includes(id)) return deleteChest(id)
-    const clean = {
-      hidden: hidden.filter(x => x !== id),
-      order: (config.order || []).filter(x => x !== id),
+  function sDeleteStop(id) {
+    const c = sDraft.config
+    if (sp.chestList.includes(id)) {
+      return sSet({ chestList: sp.chestList.filter(x => x !== id), order: (c.order || []).filter(x => x !== id) })
     }
-    if (custom.some(c => c.id === id)) {
-      return saveConfig({
+    const clean = { hidden: (c.hidden || []).filter(x => x !== id), order: (c.order || []).filter(x => x !== id) }
+    if ((c.custom || []).some(x => x.id === id)) {
+      return sSet({
         ...clean,
-        custom: custom.filter(c => c.id !== id),
-        customDone: { ...config.customDone, ids: (config.customDone?.ids || []).filter(x => x !== id) },
+        custom: c.custom.filter(x => x.id !== id),
+        customDone: { ...c.customDone, ids: (c.customDone?.ids || []).filter(x => x !== id) },
       })
     }
-    setHabits(prev => prev.filter(h => h.id !== id))
-    saveConfig(clean)
-    await supabase.from('habits').delete().eq('id', id).eq('user_id', user.id)
+    setSDraft(d => ({
+      ...d, dirty: true,
+      config: { ...d.config, ...clean },
+      habits: d.habits.filter(h => h.id !== id),
+      ops: [...d.ops, { type: 'delete', id }],
+    }))
   }
-
-  function deleteChest(id) {
-    updateLayout({ chestList: chestList.filter(c => c !== id), order: sequence.map(n => n.id).filter(x => x !== id) })
-  }
-  function addPrayers() {
-    const have = new Set(custom.map(c => c.label))
-    const add = PRAYERS.filter(p => !have.has(p.label))
-      .map(p => ({ id: newId('c_pray_'), icon: p.icon, label: p.label, link: 'none' }))
+  function sAddPrayers() {
+    const c = sDraft.config
+    const have = new Set((c.custom || []).map(x => x.label))
+    const add = PRAYERS.filter(pr => !have.has(pr.label))
+      .map(pr => ({ id: newId('c_pray_'), icon: pr.icon, label: pr.label, link: 'none' }))
     if (!add.length) return
-    saveConfig({
-      custom: [...custom, ...add],
-      colors: { ...config.colors, ...Object.fromEntries(add.map(a => [a.id, 'teal'])) },
+    sSet({
+      custom: [...(c.custom || []), ...add],
+      colors: { ...(c.colors || {}), ...Object.fromEntries(add.map(x => [x.id, 'teal'])) },
     })
+  }
+  async function saveSettings() {
+    const { config: c, habits: hs, ops } = sDraft
+    saveConfig(c)
+    setHabits(hs)
+    setSDraft(null)
+    setShowSettings(false)
+    for (const op of ops) {
+      if (op.type === 'delete') await supabase.from('habits').delete().eq('id', op.id).eq('user_id', user.id)
+      else await supabase.from('habits').update({ icon: op.icon, name: op.name }).eq('id', op.id).eq('user_id', user.id)
+    }
+  }
+  function closeSettings() {
+    setSDraft(null)
+    setShowSettings(false)
   }
 
   const openItem = items.find(i => i.id === stopSheet)
@@ -314,7 +302,7 @@ export default function Dashboard({ logs, setPage }) {
           onOpenStop={id => setStopSheet(id)}
           onDo={id => doNow(id)}
           onOpenChest={(id, available) => available && setChestSheet({ k: id, alreadyOpen: openedChests.has(id) })}
-          onOpenSettings={() => setShowSettings(true)}
+          onOpenSettings={openSettings}
           edit={!!draft}
           onStartEdit={() => setDraft({ order: sequence.map(n => n.id), chestList, colors: { ...(config.colors || {}) } })}
           onSaveEdit={() => { saveConfig(draft); setDraft(null) }}
@@ -356,20 +344,22 @@ export default function Dashboard({ logs, setPage }) {
           onClose={() => setChestSheet(null)}/>
       )}
 
-      {showSettings && (
+      {showSettings && sDraft && (
         <PathSettingsSheet
-          config={config}
-          save={saveConfig}
-          stops={allStops.map(st => ({ ...st, link: linkOf(st.id), hidden: hidden.includes(st.id) }))}
-          setLink={setLink}
-          sequence={sequence.map(n => n.type === 'stop' ? { ...n, link: linkOf(n.id) } : n)}
-          onSaveOrder={ids => saveConfig({ order: ids, ...(legacyChests ? { chestList } : {}) })}
-          onAddChest={addChest}
-          onEditStop={editStop}
-          onDeleteStop={deleteStop}
-          onAddPrayers={addPrayers}
-          hasPrayers={PRAYERS.every(p => custom.some(c => c.label === p.label))}
-          onClose={() => setShowSettings(false)}/>
+          config={sDraft.config}
+          save={sSet}
+          stops={sp.allStops.map(st => ({ ...st, link: sp.linkOf(st.id), hidden: sp.hidden.includes(st.id) }))}
+          sequence={sp.sequence.map(n => n.type === 'stop' ? { ...n, link: sp.linkOf(n.id) } : n)}
+          setLink={sSetLink}
+          onSaveOrder={ids => sSet({ order: ids })}
+          onAddChest={sAddChest}
+          onEditStop={sEditStop}
+          onDeleteStop={sDeleteStop}
+          onAddPrayers={sAddPrayers}
+          hasPrayers={PRAYERS.every(pr => sp.custom.some(c => c.label === pr.label))}
+          dirty={sDraft.dirty}
+          onSaveAll={saveSettings}
+          onClose={closeSettings}/>
       )}
     </>
   )
