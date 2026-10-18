@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, Play, Check, RotateCcw, Plus, Minus, ArrowLeft, Shuffle, Eye, EyeOff, Trash2 } from 'lucide-react'
-import { PATH_LINKS } from '../lib/pathConfig'
+import { PATH_LINKS, newId } from '../lib/pathConfig'
 import Metas from '../pages/Metas'
 import Afirmaciones from '../pages/Afirmaciones'
 import Respiracion from '../pages/Respiracion'
@@ -237,19 +237,14 @@ export function ChestSheet({ rewards, breakMin, alreadyOpen, onOpened, onClose }
 }
 
 // ── Personalizar camino ────────────────────────────────────────────
-export function PathSettingsSheet({ config, save, stops, setLink, stopCount, onClose }) {
+export function PathSettingsSheet({ config, save, stops, setLink, onAddPrayers, hasPrayers, onClose }) {
   const [newReward, setNewReward] = useState('')
   const [stopIcon, setStopIcon]   = useState('⭐')
   const [stopName, setStopName]   = useState('')
   const [stopLink, setStopLink]   = useState('none')
-  const total  = Math.max(stopCount, 1)
   const hidden = config.hidden || []
   const custom = config.custom || []
 
-  function toggleChest(k) {
-    const chests = config.chests.includes(k) ? config.chests.filter(c => c !== k) : [...config.chests, k].sort((a, b) => a - b)
-    save({ chests })
-  }
   function addReward() {
     const r = newReward.trim()
     if (!r) return
@@ -262,7 +257,7 @@ export function PathSettingsSheet({ config, save, stops, setLink, stopCount, onC
   function addStop() {
     const label = stopName.trim()
     if (!label) return
-    const id = 'c_' + Date.now().toString(36)
+    const id = newId('c_')
     save({ custom: [...custom, { id, icon: stopIcon.trim() || '⭐', label, link: stopLink }] })
     setStopName(''); setStopIcon('⭐'); setStopLink('none')
   }
@@ -322,23 +317,19 @@ export function PathSettingsSheet({ config, save, stops, setLink, stopCount, onC
             className="px-4 rounded-xl bg-blue-600 text-white text-sm font-black disabled:opacity-30">Añadir</button>
         </div>
       </div>
+      {!hasPrayers && (
+        <button onClick={onAddPrayers}
+          className="mt-3 w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-black text-white active:translate-y-0.5"
+          style={{ background: '#00cd9c', boxShadow: '0 4px 0 #00a881' }}>
+          🕌 Añadir las 5 oraciones
+        </button>
+      )}
 
       {/* Cofres */}
-      <p className="mt-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">🎁 Cofres</p>
-      <p className="text-xs text-slate-500 mt-1 mb-3">Marca después de cuántas paradas quieres un cofre</p>
-      <div className="grid grid-cols-6 gap-2">
-        {Array.from({ length: total }, (_, i) => i + 1).map(k => {
-          const on = config.chests.includes(k)
-          return (
-            <button key={k} onClick={() => toggleChest(k)}
-              className={`aspect-square rounded-xl text-sm font-black flex flex-col items-center justify-center transition-colors
-                ${on ? 'bg-[#ffc800] text-amber-900 shadow-[0_3px_0_#e0a800]' : 'bg-slate-100 text-slate-400'}`}>
-              {on ? '🎁' : k}
-              {on && <span className="text-[9px] leading-none">{k}</span>}
-            </button>
-          )
-        })}
-      </div>
+      <p className="mt-7 text-[11px] font-black text-slate-400 uppercase tracking-widest">🎁 Cofres</p>
+      <p className="text-xs text-slate-500 mt-1">
+        Añádelos, bórralos y muévelos con el botón ✏️ Editar del camino.
+      </p>
 
       {/* Descanso */}
       <p className="mt-7 text-[11px] font-black text-slate-400 uppercase tracking-widest">⏱️ Minutos de descanso</p>

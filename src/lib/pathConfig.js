@@ -56,7 +56,35 @@ const DEFAULTS = {
   hidden:   [],       // paradas ocultas (id de hábito o '__focus')
   custom:   [],       // paradas propias: [{ id, icon, label, link }]
   customDone: { date: '', ids: [] }, // paradas propias hechas hoy
+  colors:   {},       // { id: 'green' | 'blue' | ... }
+  // chestList: ['chest_xxx', ...] — cofres; su posición va en `order` junto a las paradas
 }
+
+// Colores que se pueden elegir para cada parada (relleno + sombra 3D)
+export const STOP_COLORS = {
+  green:  { bg: '#58cc02', shadow: '#46a302' },
+  blue:   { bg: '#1cb0f6', shadow: '#1899d6' },
+  purple: { bg: '#ce82ff', shadow: '#a568cc' },
+  pink:   { bg: '#ff86d0', shadow: '#e06bb5' },
+  orange: { bg: '#ff9600', shadow: '#e08600' },
+  red:    { bg: '#ff4b4b', shadow: '#d33a3a' },
+  teal:   { bg: '#00cd9c', shadow: '#00a881' },
+  indigo: { bg: '#6366f1', shadow: '#4f46e5' },
+}
+
+// Id único para paradas y cofres nuevos
+export function newId(prefix) {
+  return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
+}
+
+// Las 5 oraciones del día, para añadirlas como paradas
+export const PRAYERS = [
+  { icon: '🌅', label: 'Fajr' },
+  { icon: '☀️', label: 'Dhuhr' },
+  { icon: '🌤️', label: 'Asr' },
+  { icon: '🌇', label: 'Maghrib' },
+  { icon: '🌙', label: 'Isha' },
+]
 
 export function todayKey() {
   const d = new Date()

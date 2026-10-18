@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { usePomodoro } from '../contexts/PomodoroContext'
 import SuccessPath from '../components/SuccessPath'
 import { StopSheet, InlinePage, ChestSheet, PathSettingsSheet } from '../components/PathSheets'
-import { usePathConfig, guessLink, PATH_LINKS, readOpenedChests, writeOpenedChests, todayKey } from '../lib/pathConfig'
+import { usePathConfig, guessLink, PATH_LINKS, readOpenedChests, writeOpenedChests, todayKey, PRAYERS, STOP_COLORS, newId } from '../lib/pathConfig'
 
 // ── Helpers ────────────────────────────────────────────────────────
 function todayStr() { return new Date().toISOString().split('T')[0] }
@@ -142,15 +142,60 @@ export default function Dashboard({ logs, setPage }) {
     ...habits.map(h => ({ id: h.id, icon: h.icon || '⭐', label: h.name, done: todayLogs.has(h.id), kind: 'habit' })),
     ...custom.map(c => ({ id: c.id, icon: c.icon || '⭐', label: c.label, done: customDone.includes(c.id), kind: 'custom' })),
   ]
-  // Orden elegido por el usuario; las paradas nuevas van al final
-  const order    = config.order || []
-  const rank     = id => { const i = order.indexOf(id); return i === -1 ? order.length + allStops.findIndex(s => s.id === id) : i }
-  const items    = allStops.filter(s => !hidden.includes(s.id)).sort((a, b) => rank(a.id) - rank(b.id))
-    .map(s => ({
-      ...s,
-      canDo: s.kind !== 'focus' && linkOf(s.id) !== 'none',   // se hace dentro de la app → botón ▶
-      canCheck: s.kind !== 'focus' || !!focusText,           // el foco necesita estar escrito
-    }))
+  // Paradas visibles con sus acciones
+  const stops = allStops.filter(s => !hidden.includes(s.id)).map(s => ({
+    ...s,
+    type: 'stop',
+    canDo: s.kind !== 'focus' && linkOf(s.id) !== 'none',   // se hace dentro de la app → ▶
+    canCheck: s.kind !== 'focus' || !!focusText,           // el foco necesita estar escrito
+  }))
+
+  // Cofres: lista propia; los antiguos (por número de parada) se convierten la primera vez
+  const legacyChests = !config.chestList
+  const chestList    = config.chestList || (config.chests || []).map(k => `chest_${k}`)
+
+  // Secuencia de abajo a arriba según el orden guardado; lo nuevo va al final (arriba)
+  const order = config.order || []
+  const sortedStops = [...stops].sort((a, b) => {
+    const ra = order.indexOf(a.id), rb = order.indexOf(b.id)
+    return (ra === -1 ? 1e6 + allStops.indexOf(a) : ra) - (rb === -1 ? 1e6 + allStops.indexOf(b) : rb)
+  })
+  const sequence = [...sortedStops]
+  chestList.forEach(id => {
+    const r = order.indexOf(id)
+    let at
+    if (r !== -1) {
+      at = sequence.findIndex(n => { const rn = order.indexOf(n.id); return rn !== -1 && rn > r })
+    } else if (legacyChests) {
+      const k = Number(id.split('_')[1]) || 0                                       // después de la parada nº k
+      let seen = 0
+      at = sequence.findIndex(n => n.type === 'stop' && ++seen > k)
+    } else at = -1
+    sequence.splice(at === -1 ? sequence.length : at, 0, { type: 'chest', id })
+  })
+  const items = sortedStops
+
+  function colorsOf(id) {
+    return STOP_COLORS[config.colors?.[id]] || STOP_COLORS.green
+  }
+  function addChest() {
+    const id = newId('chest_')
+    saveConfig({ chestList: [...chestList, id], order: [...sequence.map(n => n.id), id] })
+  }
+  function deleteChest(id) {
+    saveConfig({ chestList: chestList.filter(c => c !== id), order: sequence.map(n => n.id).filter(x => x !== id) })
+  }
+  function addPrayers() {
+    const have = new Set(custom.map(c => c.label))
+    const add = PRAYERS.filter(p => !have.has(p.label))
+      .map(p => ({ id: newId('c_pray_'), icon: p.icon, label: p.label, link: 'none' }))
+    if (!add.length) return
+    saveConfig({
+      custom: [...custom, ...add],
+      colors: { ...config.colors, ...Object.fromEntries(add.map(a => [a.id, 'teal'])) },
+    })
+  }
+
   const openItem = items.find(i => i.id === stopSheet)
 
   function toggleItem(id) {
@@ -226,15 +271,18 @@ export default function Dashboard({ logs, setPage }) {
         </div>
       ) : (
         <SuccessPath
-          items={items}
-          chests={config.chests}
+          sequence={sequence}
+          colorsOf={colorsOf}
           openedChests={openedChests}
-          onOpenStop={item => setStopSheet(item.id)}
-          onOpenChest={(k, available) => available && setChestSheet({ k, alreadyOpen: openedChests.has(k) })}
-          onOpenSettings={() => setShowSettings(true)}
-          onQuickDone={id => toggleItem(id)}
+          onToggle={id => toggleItem(id)}
+          onOpenStop={id => setStopSheet(id)}
           onDo={id => doNow(id)}
-          onReorder={ids => saveConfig({ order: [...ids, ...order.filter(id => !ids.includes(id))] })}/>
+          onOpenChest={(id, available) => available && setChestSheet({ k: id, alreadyOpen: openedChests.has(id) })}
+          onOpenSettings={() => setShowSettings(true)}
+          onReorder={ids => saveConfig({ order: ids, ...(legacyChests ? { chestList } : {}) })}
+          onSetColor={(id, k) => saveConfig({ colors: { ...config.colors, [id]: k } })}
+          onAddChest={addChest}
+          onDeleteChest={deleteChest}/>
       )}
     </div>
 
@@ -256,7 +304,7 @@ export default function Dashboard({ logs, setPage }) {
           link={inlineLink}
           item={openItem}
           onDone={() => { toggleItem(openItem.id); setInlineLink(null); setStopSheet(null) }}
-          onClose={() => setInlineLink(null)}/>
+          onClose={() => { setInlineLink(null); setStopSheet(null) }}/>
       )}
 
       {chestSheet && (
@@ -274,7 +322,8 @@ export default function Dashboard({ logs, setPage }) {
           save={saveConfig}
           stops={allStops.map(st => ({ ...st, link: linkOf(st.id), hidden: hidden.includes(st.id) }))}
           setLink={setLink}
-          stopCount={items.length}
+          onAddPrayers={addPrayers}
+          hasPrayers={PRAYERS.every(p => custom.some(c => c.label === p.label))}
           onClose={() => setShowSettings(false)}/>
       )}
     </>
