@@ -53,6 +53,14 @@ const DEFAULTS = {
   rewards:  DEFAULT_REWARDS,
   breakMin: 10,
   links:    {},       // { habitId: 'metas' | ... }
+  hidden:   [],       // paradas ocultas (id de hábito o '__focus')
+  custom:   [],       // paradas propias: [{ id, icon, label, link }]
+  customDone: { date: '', ids: [] }, // paradas propias hechas hoy
+}
+
+export function todayKey() {
+  const d = new Date()
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
 }
 
 export function usePathConfig() {

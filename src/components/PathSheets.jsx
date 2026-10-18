@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Play, Check, RotateCcw, Plus, Minus, ArrowLeft, Shuffle } from 'lucide-react'
+import { X, Play, Check, RotateCcw, Plus, Minus, ArrowLeft, Shuffle, Eye, EyeOff, Trash2 } from 'lucide-react'
 import { PATH_LINKS } from '../lib/pathConfig'
 import Metas from '../pages/Metas'
 import Afirmaciones from '../pages/Afirmaciones'
@@ -237,9 +237,14 @@ export function ChestSheet({ rewards, breakMin, alreadyOpen, onOpened, onClose }
 }
 
 // ── Personalizar camino ────────────────────────────────────────────
-export function PathSettingsSheet({ config, save, habits, onClose }) {
+export function PathSettingsSheet({ config, save, stops, setLink, stopCount, onClose }) {
   const [newReward, setNewReward] = useState('')
-  const total = habits.length + 1
+  const [stopIcon, setStopIcon]   = useState('⭐')
+  const [stopName, setStopName]   = useState('')
+  const [stopLink, setStopLink]   = useState('none')
+  const total  = Math.max(stopCount, 1)
+  const hidden = config.hidden || []
+  const custom = config.custom || []
 
   function toggleChest(k) {
     const chests = config.chests.includes(k) ? config.chests.filter(c => c !== k) : [...config.chests, k].sort((a, b) => a - b)
@@ -251,10 +256,72 @@ export function PathSettingsSheet({ config, save, habits, onClose }) {
     save({ rewards: [...config.rewards, r] })
     setNewReward('')
   }
+  function toggleHidden(id) {
+    save({ hidden: hidden.includes(id) ? hidden.filter(x => x !== id) : [...hidden, id] })
+  }
+  function addStop() {
+    const label = stopName.trim()
+    if (!label) return
+    const id = 'c_' + Date.now().toString(36)
+    save({ custom: [...custom, { id, icon: stopIcon.trim() || '⭐', label, link: stopLink }] })
+    setStopName(''); setStopIcon('⭐'); setStopLink('none')
+  }
+  function deleteStop(id) {
+    save({
+      custom: custom.filter(x => x.id !== id),
+      hidden: hidden.filter(x => x !== id),
+      customDone: { ...config.customDone, ids: (config.customDone?.ids || []).filter(x => x !== id) },
+    })
+  }
 
   return (
     <Sheet onClose={onClose}>
       <h2 className="text-xl font-black text-slate-800">Personalizar camino</h2>
+
+      {/* Paradas */}
+      <p className="mt-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">🛤️ Paradas</p>
+      <p className="text-xs text-slate-500 mt-1 mb-3">Oculta las que no quieras en el camino o añade las tuyas</p>
+      <div className="space-y-2">
+        {stops.map(st => (
+          <div key={st.id} className={`flex items-center gap-2 rounded-xl px-3 py-2 ${st.hidden ? 'bg-slate-50 opacity-50' : 'bg-slate-50'}`}>
+            <span className="text-xl w-8 text-center">{st.icon}</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-slate-700 truncate">{st.kind === 'focus' ? 'Foco del día' : st.label}</p>
+              <p className="text-[10px] font-bold text-slate-400">
+                {st.kind === 'focus' ? 'Foco' : st.kind === 'habit' ? 'Hábito' : 'Parada propia'}
+              </p>
+            </div>
+            <button onClick={() => toggleHidden(st.id)} aria-label={st.hidden ? 'Mostrar' : 'Ocultar'}
+              className={`w-9 h-9 rounded-xl flex items-center justify-center ${st.hidden ? 'bg-slate-200 text-slate-400' : 'bg-green-100 text-green-600'}`}>
+              {st.hidden ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+            {st.kind === 'custom' && (
+              <button onClick={() => deleteStop(st.id)} aria-label="Borrar parada"
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-300 hover:text-red-500 active:bg-red-50">
+                <Trash2 size={16} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 bg-blue-50 rounded-2xl p-3 space-y-2">
+        <p className="text-xs font-black text-blue-700">＋ Añadir parada</p>
+        <div className="flex gap-2">
+          <input value={stopIcon} onChange={e => setStopIcon(e.target.value)} maxLength={4} aria-label="Emoji"
+            className="w-12 text-center border border-slate-200 rounded-xl py-2.5 text-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <input value={stopName} onChange={e => setStopName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addStop()}
+            placeholder="Ej: Leer 10 páginas"
+            className="flex-1 min-w-0 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div className="flex gap-2">
+          <select value={stopLink} onChange={e => setStopLink(e.target.value)}
+            className="flex-1 min-w-0 bg-white border border-slate-200 rounded-xl px-2 py-2.5 text-xs font-bold text-slate-600">
+            {Object.entries(PATH_LINKS).map(([id, l]) => <option key={id} value={id}>{l.emoji} {l.label}</option>)}
+          </select>
+          <button onClick={addStop} disabled={!stopName.trim()}
+            className="px-4 rounded-xl bg-blue-600 text-white text-sm font-black disabled:opacity-30">Añadir</button>
+        </div>
+      </div>
 
       {/* Cofres */}
       <p className="mt-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">🎁 Cofres</p>
@@ -310,14 +377,14 @@ export function PathSettingsSheet({ config, save, habits, onClose }) {
           className="w-11 rounded-xl bg-blue-600 text-white flex items-center justify-center disabled:opacity-30"><Plus size={18} /></button>
       </div>
 
-      {/* Dónde se hace cada hábito */}
-      <p className="mt-7 text-[11px] font-black text-slate-400 uppercase tracking-widest">📍 Dónde se hace cada hábito</p>
+      {/* Dónde se hace cada parada */}
+      <p className="mt-7 text-[11px] font-black text-slate-400 uppercase tracking-widest">📍 Dónde se hace cada parada</p>
       <div className="mt-3 space-y-2">
-        {habits.map(h => (
-          <div key={h.id} className="flex items-center gap-2">
-            <span className="text-xl w-8 text-center">{h.icon}</span>
-            <p className="flex-1 min-w-0 text-sm font-semibold text-slate-700 truncate">{h.label}</p>
-            <select value={h.link} onChange={e => save({ links: { ...config.links, [h.id]: e.target.value } })}
+        {stops.filter(st => st.kind !== 'focus').map(st => (
+          <div key={st.id} className="flex items-center gap-2">
+            <span className="text-xl w-8 text-center">{st.icon}</span>
+            <p className="flex-1 min-w-0 text-sm font-semibold text-slate-700 truncate">{st.label}</p>
+            <select value={st.link} onChange={e => setLink(st.id, e.target.value)}
               className="w-40 bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 text-xs font-bold text-slate-600">
               {Object.entries(PATH_LINKS).map(([id, l]) => <option key={id} value={id}>{l.emoji} {l.label}</option>)}
             </select>

@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { usePomodoro } from '../contexts/PomodoroContext'
 import SuccessPath from '../components/SuccessPath'
 import { StopSheet, InlinePage, ChestSheet, PathSettingsSheet } from '../components/PathSheets'
-import { usePathConfig, guessLink, PATH_LINKS, readOpenedChests, writeOpenedChests } from '../lib/pathConfig'
+import { usePathConfig, guessLink, PATH_LINKS, readOpenedChests, writeOpenedChests, todayKey } from '../lib/pathConfig'
 
 // ── Helpers ────────────────────────────────────────────────────────
 function todayStr() { return new Date().toISOString().split('T')[0] }
@@ -120,21 +120,42 @@ export default function Dashboard({ logs, setPage }) {
   }
 
   // ── Camino ────────────────────────────────────────────────────────
-  const linkOf = h => config.links[h.id] || guessLink(h.name)
-  const items = [
-    { id: '__focus', icon: '🎯', label: focusText ? `Foco: ${focusText}` : 'Foco del día', done: !!focusText && focusDone },
-    ...habits.map(h => ({ id: h.id, icon: h.icon || '⭐', label: h.name, done: todayLogs.has(h.id) })),
+  const hidden     = config.hidden || []
+  const custom     = config.custom || []
+  const customDone = config.customDone?.date === todayKey() ? config.customDone.ids : []
+
+  // Dónde se hace cada parada (hábito: elegido o adivinado por el nombre; propia: la suya)
+  function linkOf(id) {
+    const c = custom.find(x => x.id === id)
+    if (c) return c.link || 'none'
+    const h = habits.find(x => x.id === id)
+    return h ? (config.links[id] || guessLink(h.name)) : 'none'
+  }
+  function setLink(id, link) {
+    if (custom.some(x => x.id === id)) saveConfig({ custom: custom.map(x => x.id === id ? { ...x, link } : x) })
+    else saveConfig({ links: { ...config.links, [id]: link } })
+  }
+
+  // Todas las paradas posibles; el camino muestra las no ocultas
+  const allStops = [
+    { id: '__focus', icon: '🎯', label: focusText ? `Foco: ${focusText}` : 'Foco del día', done: !!focusText && focusDone, kind: 'focus' },
+    ...habits.map(h => ({ id: h.id, icon: h.icon || '⭐', label: h.name, done: todayLogs.has(h.id), kind: 'habit' })),
+    ...custom.map(c => ({ id: c.id, icon: c.icon || '⭐', label: c.label, done: customDone.includes(c.id), kind: 'custom' })),
   ]
+  const items    = allStops.filter(s => !hidden.includes(s.id))
   const openItem = items.find(i => i.id === stopSheet)
-  const openHabit = habits.find(h => h.id === stopSheet)
 
   function toggleItem(id) {
-    if (id === '__focus') toggleFocusDone()
-    else toggleHabit(id)
+    if (id === '__focus') return toggleFocusDone()
+    if (custom.some(x => x.id === id)) {
+      const ids = customDone.includes(id) ? customDone.filter(x => x !== id) : [...customDone, id]
+      return saveConfig({ customDone: { date: todayKey(), ids } })
+    }
+    toggleHabit(id)
   }
 
   function doNow() {
-    const link = linkOf(openHabit)
+    const link = linkOf(openItem.id)
     if (PATH_LINKS[link]?.inline) setInlineLink(link)
     else { setStopSheet(null); setPage(link) }
   }
@@ -210,8 +231,8 @@ export default function Dashboard({ logs, setPage }) {
       {openItem && !inlineLink && (
         <StopSheet
           item={openItem}
-          link={openHabit ? linkOf(openHabit) : 'none'}
-          onLinkChange={link => saveConfig({ links: { ...config.links, [openHabit.id]: link } })}
+          link={linkOf(openItem.id)}
+          onLinkChange={link => setLink(openItem.id, link)}
           onDo={doNow}
           onToggle={() => { const wasDone = openItem.done; toggleItem(openItem.id); if (!wasDone) setStopSheet(null) }}
           onClose={() => setStopSheet(null)}
@@ -240,7 +261,9 @@ export default function Dashboard({ logs, setPage }) {
         <PathSettingsSheet
           config={config}
           save={saveConfig}
-          habits={habits.map(h => ({ id: h.id, icon: h.icon || '⭐', label: h.name, link: linkOf(h) }))}
+          stops={allStops.map(st => ({ ...st, link: linkOf(st.id), hidden: hidden.includes(st.id) }))}
+          setLink={setLink}
+          stopCount={items.length}
           onClose={() => setShowSettings(false)}/>
       )}
     </>
