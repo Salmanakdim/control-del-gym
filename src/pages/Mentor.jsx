@@ -82,20 +82,15 @@ export default function Mentor({ setPage }) {
       .map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text }))
 
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      // La clave de la IA vive en el servidor (/api/claude); aquí solo va la sesión del usuario
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/claude', {
         method: 'POST',
         headers: {
-          'x-api-key': import.meta.env.VITE_ANTHROPIC_KEY,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
+          authorization: `Bearer ${session?.access_token || ''}`,
           'content-type': 'application/json',
         },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 1024,
-          system: SYSTEM_PROMPT,
-          messages: history,
-        }),
+        body: JSON.stringify({ system: SYSTEM_PROMPT, messages: history }),
       })
       const data = await res.json()
       if (!res.ok) {
