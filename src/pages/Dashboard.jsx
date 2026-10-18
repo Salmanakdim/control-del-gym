@@ -142,7 +142,10 @@ export default function Dashboard({ logs, setPage }) {
     ...habits.map(h => ({ id: h.id, icon: h.icon || '⭐', label: h.name, done: todayLogs.has(h.id), kind: 'habit' })),
     ...custom.map(c => ({ id: c.id, icon: c.icon || '⭐', label: c.label, done: customDone.includes(c.id), kind: 'custom' })),
   ]
-  const items    = allStops.filter(s => !hidden.includes(s.id))
+  // Orden elegido por el usuario; las paradas nuevas van al final
+  const order    = config.order || []
+  const rank     = id => { const i = order.indexOf(id); return i === -1 ? order.length + allStops.findIndex(s => s.id === id) : i }
+  const items    = allStops.filter(s => !hidden.includes(s.id)).sort((a, b) => rank(a.id) - rank(b.id))
   const openItem = items.find(i => i.id === stopSheet)
 
   function toggleItem(id) {
@@ -223,7 +226,8 @@ export default function Dashboard({ logs, setPage }) {
           openedChests={openedChests}
           onOpenStop={item => setStopSheet(item.id)}
           onOpenChest={(k, available) => available && setChestSheet({ k, alreadyOpen: openedChests.has(k) })}
-          onOpenSettings={() => setShowSettings(true)}/>
+          onOpenSettings={() => setShowSettings(true)}
+          onReorder={ids => saveConfig({ order: [...ids, ...order.filter(id => !ids.includes(id))] })}/>
       )}
     </div>
 

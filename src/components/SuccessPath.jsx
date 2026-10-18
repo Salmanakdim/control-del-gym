@@ -1,5 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { Settings } from 'lucide-react'
+import { DndContext, MouseSensor, TouchSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 // Camino al éxito estilo Duolingo: se empieza abajo y se sube hasta el trofeo.
 // Paradas = hábitos + foco; entre ellas, cofres de recompensa donde el usuario elija.
@@ -63,11 +66,40 @@ function Round({ colors, onClick, label, dim, pop, children, size = 64, rounded 
   )
 }
 
-export default function SuccessPath({ items, chests, openedChests, onOpenStop, onOpenChest, onOpenSettings }) {
+// Fila de parada arrastrable: mantener pulsado y mover arriba/abajo
+function SortableRow({ id, x, height, marginTop, children }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  return (
+    <div ref={setNodeRef} {...attributes} {...listeners}
+      onContextMenu={e => e.preventDefault()}
+      className={`relative flex justify-center items-start select-none ${isDragging ? 'z-30 opacity-90' : ''}`}
+      style={{
+        height, marginTop, WebkitTouchCallout: 'none', transition,
+        transform: `${CSS.Translate.toString(transform) || ''} translateX(${x}px) ${isDragging ? 'scale(1.1)' : ''}`,
+      }}>
+      {children}
+    </div>
+  )
+}
+
+export default function SuccessPath({ items, chests, openedChests, onOpenStop, onOpenChest, onOpenSettings, onReorder }) {
   const currentRef = useRef(null)
   const total   = items.length
-  const ordered = [...items.filter(i => i.done), ...items.filter(i => !i.done)]
+  const ordered = items   // el orden lo elige el usuario
   const done    = ordered.filter(i => i.done).length
+  const curIdx  = ordered.findIndex(i => !i.done)   // primera parada pendiente
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { delay: 300, tolerance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 8 } }),
+  )
+
+  // El camino se pinta de arriba (última) a abajo (primera): el orden visual es el inverso
+  const visualIds = [...ordered].reverse().map(i => i.id)
+  function handleDragEnd({ active, over }) {
+    if (!over || active.id === over.id) return
+    const moved = arrayMove(visualIds, visualIds.indexOf(active.id), visualIds.indexOf(over.id))
+    onReorder(moved.reverse())
+  }
   const pct     = total > 0 ? Math.round((done / total) * 100) : 0
   const level   = levelFor(pct)
   const win     = total > 0 && done === total
@@ -116,6 +148,9 @@ export default function SuccessPath({ items, chests, openedChests, onOpenStop, o
           )}
         </div>
 
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}
+          autoScroll={{ threshold: { x: 0, y: 0.12 }, acceleration: 4 }}>
+        <SortableContext items={visualIds} strategy={verticalListSortingStrategy}>
         {[...seq].reverse().map(node => {
           const pos = seq.indexOf(node)
           const x   = OFFSETS[pos % OFFSETS.length]
@@ -143,11 +178,10 @@ export default function SuccessPath({ items, chests, openedChests, onOpenStop, o
           }
 
           const { item, index } = node
-          const isCurrent = !win && index === done
+          const isCurrent = !win && index === curIdx
           const colors = item.done || isCurrent ? GREEN : GREY
           return (
-            <div key={item.id} className="relative flex justify-center items-start"
-              style={{ height: isCurrent ? ROW + 34 : ROW, marginTop: isCurrent ? 14 : 0, transform: `translateX(${x}px)` }}>
+            <SortableRow key={item.id} id={item.id} x={x} height={isCurrent ? ROW + 34 : ROW} marginTop={isCurrent ? 14 : 0}>
               <div className="relative" ref={isCurrent ? currentRef : undefined}>
                 {isCurrent && <div className="absolute -inset-2.5 rounded-full border-[6px] border-slate-200" />}
                 <Round key={`${item.id}-${item.done}`} colors={colors} dim={!item.done && !isCurrent}
@@ -166,9 +200,11 @@ export default function SuccessPath({ items, chests, openedChests, onOpenStop, o
               {isCurrent
                 ? <Bubble title={done === 0 ? 'EMPEZAR' : 'SIGUIENTE'} subtitle={item.label} />
                 : <p className="absolute top-[74px] text-[10px] font-bold text-slate-500 max-w-[90px] truncate text-center">{item.label}</p>}
-            </div>
+            </SortableRow>
           )
         })}
+        </SortableContext>
+        </DndContext>
 
         <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mt-1">Inicio</p>
       </div>
