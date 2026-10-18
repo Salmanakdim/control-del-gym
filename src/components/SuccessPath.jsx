@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Flowy from './Flowy'
-import { Settings } from 'lucide-react'
+import { Settings, Check, Play, Pencil } from 'lucide-react'
 import { DndContext, MouseSensor, TouchSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -37,6 +37,67 @@ function Bubble({ title, subtitle, color = '#58cc02' }) {
   )
 }
 
+// Cartel de la parada actual con acciones rápidas: ✓ Hecho (marca al momento) y ▶ Hacer
+function CurrentCard({ title, subtitle, canDo, canCheck, onCheck, onDo, onWrite }) {
+  return (
+    <div className="absolute top-[86px] left-1/2 -translate-x-1/2 z-10">
+      <div className="relative px-3 pt-1.5 pb-2.5 rounded-2xl border-2 border-slate-200 bg-white shadow-sm text-center whitespace-nowrap">
+        <div className="absolute left-1/2 -top-[7px] -translate-x-1/2 w-3 h-3 rotate-45 bg-white border-l-2 border-t-2 border-slate-200" />
+        <p className="text-xs font-black text-[#58cc02]">{title}</p>
+        <p className="text-[10px] font-bold text-slate-500 max-w-[160px] truncate mx-auto">{subtitle}</p>
+        <div className="flex gap-2 mt-2 justify-center">
+          {canCheck ? (
+            <button onClick={onCheck} aria-label="Marcar como hecho"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-black text-white active:translate-y-0.5"
+              style={{ background: '#58cc02', boxShadow: '0 3px 0 #46a302' }}>
+              <Check size={13} strokeWidth={3.5} /> Hecho
+            </button>
+          ) : (
+            <button onClick={onWrite} aria-label="Escribir"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-black text-white active:translate-y-0.5"
+              style={{ background: '#f59e0b', boxShadow: '0 3px 0 #d97706' }}>
+              <Pencil size={12} strokeWidth={3} /> Escribir
+            </button>
+          )}
+          {canDo && (
+            <button onClick={onDo} aria-label="Hacer ahora"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-black text-white active:translate-y-0.5"
+              style={{ background: '#1cb0f6', boxShadow: '0 3px 0 #1899d6' }}>
+              <Play size={12} fill="white" /> Hacer
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Botoncitos al lado de una parada pendiente
+function QuickButtons({ side, canDo, canCheck, onCheck, onDo, onWrite }) {
+  return (
+    <div className="absolute top-1/2 -translate-y-1/2 flex gap-1.5"
+      style={side === 'left' ? { right: '100%', marginRight: 14 } : { left: '100%', marginLeft: 14 }}>
+      {canDo && (
+        <button onClick={onDo} aria-label="Hacer ahora"
+          className="w-9 h-9 rounded-full bg-white border-2 border-slate-200 text-[#1cb0f6] flex items-center justify-center active:scale-90 transition-transform">
+          <Play size={14} fill="#1cb0f6" />
+        </button>
+      )}
+      {canCheck ? (
+        <button onClick={onCheck} aria-label="Marcar como hecho"
+          className="w-9 h-9 rounded-full bg-white border-2 border-slate-200 text-slate-400 flex items-center justify-center active:scale-90 active:bg-[#58cc02] active:text-white active:border-[#58cc02] transition">
+          <Check size={16} strokeWidth={3.5} />
+        </button>
+      ) : (
+        <button onClick={onWrite} aria-label="Escribir"
+          className="w-9 h-9 rounded-full bg-white border-2 border-slate-200 text-amber-500 flex items-center justify-center active:scale-90 transition">
+          <Pencil size={14} strokeWidth={3} />
+        </button>
+      )}
+    </div>
+  )
+}
+
 function Round({ colors, onClick, label, dim, pop, children, size = 64, rounded = 'rounded-full' }) {
   return (
     <button onClick={onClick} aria-label={label}
@@ -63,7 +124,7 @@ function SortableRow({ id, x, height, marginTop, children }) {
   )
 }
 
-export default function SuccessPath({ items, chests, openedChests, onOpenStop, onOpenChest, onOpenSettings, onReorder }) {
+export default function SuccessPath({ items, chests, openedChests, onOpenStop, onOpenChest, onOpenSettings, onReorder, onQuickDone, onDo }) {
   const currentRef = useRef(null)
   const total   = items.length
   const ordered = items   // el orden lo elige el usuario
@@ -175,8 +236,9 @@ export default function SuccessPath({ items, chests, openedChests, onOpenStop, o
           const { item, index } = node
           const isCurrent = !win && index === curIdx
           const colors = item.done || isCurrent ? GREEN : GREY
+          const inner  = x > 0 ? 'left' : 'right'   // lado hacia el centro de la pantalla
           return (
-            <SortableRow key={item.id} id={item.id} x={x} height={isCurrent ? ROW + 34 : ROW} marginTop={isCurrent ? 14 : 0}>
+            <SortableRow key={item.id} id={item.id} x={x} height={isCurrent ? ROW + 96 : ROW} marginTop={isCurrent ? 14 : 0}>
               <div className="relative" ref={isCurrent ? currentRef : undefined}>
                 {isCurrent && <div className="absolute -inset-2.5 rounded-full border-[6px] border-slate-200" />}
                 <Round key={`${item.id}-${item.done}`} colors={colors} dim={!item.done && !isCurrent}
@@ -187,13 +249,19 @@ export default function SuccessPath({ items, chests, openedChests, onOpenStop, o
                   <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-white text-[#58cc02] text-[11px] font-black flex items-center justify-center shadow">✓</span>
                 )}
                 {isCurrent && (
-                  <div className="absolute -top-2" style={x > 0 ? { right: '100%', marginRight: 16 } : { left: '100%', marginLeft: 16 }}>
+                  <div className="absolute -top-2" style={inner === 'left' ? { right: '100%', marginRight: 16 } : { left: '100%', marginLeft: 16 }}>
                     <Flowy mood={mood} size={60} />
                   </div>
                 )}
+                {!item.done && !isCurrent && (
+                  <QuickButtons side={inner} canDo={item.canDo} canCheck={item.canCheck !== false}
+                    onCheck={() => onQuickDone(item.id)} onDo={() => onDo(item.id)} onWrite={() => onOpenStop(item)} />
+                )}
               </div>
               {isCurrent
-                ? <Bubble title={done === 0 ? 'EMPEZAR' : 'SIGUIENTE'} subtitle={item.label} />
+                ? <CurrentCard title={done === 0 ? 'EMPEZAR' : 'SIGUIENTE'} subtitle={item.label}
+                    canDo={item.canDo} canCheck={item.canCheck !== false}
+                    onCheck={() => onQuickDone(item.id)} onDo={() => onDo(item.id)} onWrite={() => onOpenStop(item)} />
                 : <p className="absolute top-[74px] text-[10px] font-bold text-slate-500 max-w-[90px] truncate text-center">{item.label}</p>}
             </SortableRow>
           )

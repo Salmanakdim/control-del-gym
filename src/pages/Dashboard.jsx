@@ -146,6 +146,11 @@ export default function Dashboard({ logs, setPage }) {
   const order    = config.order || []
   const rank     = id => { const i = order.indexOf(id); return i === -1 ? order.length + allStops.findIndex(s => s.id === id) : i }
   const items    = allStops.filter(s => !hidden.includes(s.id)).sort((a, b) => rank(a.id) - rank(b.id))
+    .map(s => ({
+      ...s,
+      canDo: s.kind !== 'focus' && linkOf(s.id) !== 'none',   // se hace dentro de la app → botón ▶
+      canCheck: s.kind !== 'focus' || !!focusText,           // el foco necesita estar escrito
+    }))
   const openItem = items.find(i => i.id === stopSheet)
 
   function toggleItem(id) {
@@ -157,9 +162,9 @@ export default function Dashboard({ logs, setPage }) {
     toggleHabit(id)
   }
 
-  function doNow() {
-    const link = linkOf(openItem.id)
-    if (PATH_LINKS[link]?.inline) setInlineLink(link)
+  function doNow(id = openItem.id) {
+    const link = linkOf(id)
+    if (PATH_LINKS[link]?.inline) { setStopSheet(id); setInlineLink(link) }
     else { setStopSheet(null); setPage(link) }
   }
 
@@ -227,6 +232,8 @@ export default function Dashboard({ logs, setPage }) {
           onOpenStop={item => setStopSheet(item.id)}
           onOpenChest={(k, available) => available && setChestSheet({ k, alreadyOpen: openedChests.has(k) })}
           onOpenSettings={() => setShowSettings(true)}
+          onQuickDone={id => toggleItem(id)}
+          onDo={id => doNow(id)}
           onReorder={ids => saveConfig({ order: [...ids, ...order.filter(id => !ids.includes(id))] })}/>
       )}
     </div>
@@ -237,7 +244,7 @@ export default function Dashboard({ logs, setPage }) {
           item={openItem}
           link={linkOf(openItem.id)}
           onLinkChange={link => setLink(openItem.id, link)}
-          onDo={doNow}
+          onDo={() => doNow()}
           onToggle={() => { const wasDone = openItem.done; toggleItem(openItem.id); if (!wasDone) setStopSheet(null) }}
           onClose={() => setStopSheet(null)}
           focusText={focusText}
