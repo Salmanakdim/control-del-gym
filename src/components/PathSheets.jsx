@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Play, Check, RotateCcw, Plus, Minus, ArrowLeft, Shuffle, Eye, EyeOff, Trash2 } from 'lucide-react'
+import { X, Play, Check, RotateCcw, Plus, Minus, ArrowLeft, Shuffle, Eye, EyeOff, Trash2, GripVertical } from 'lucide-react'
+import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { PATH_LINKS, newId } from '../lib/pathConfig'
 import Metas from '../pages/Metas'
 import Afirmaciones from '../pages/Afirmaciones'
@@ -237,7 +240,43 @@ export function ChestSheet({ rewards, breakMin, alreadyOpen, onOpened, onClose }
 }
 
 // ── Personalizar camino ────────────────────────────────────────────
-export function PathSettingsSheet({ config, save, stops, setLink, onAddPrayers, hasPrayers, onClose }) {
+// Fila de la lista "Orden y lugar": se arrastra desde el asa ⠿
+function OrderRow({ node, setLink }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: node.id })
+  return (
+    <div ref={setNodeRef} {...attributes}
+      className={`flex items-center gap-2 rounded-xl py-1 ${isDragging ? 'relative z-10 bg-white shadow-lg' : ''}`}
+      style={{ transform: CSS.Translate.toString(transform), transition }}>
+      <button ref={setActivatorNodeRef} {...listeners} aria-label="Arrastrar"
+        className="w-8 h-9 rounded-lg bg-slate-50 border border-slate-200 text-slate-400 flex items-center justify-center flex-shrink-0"
+        style={{ touchAction: 'none' }}>
+        <GripVertical size={15} />
+      </button>
+      <span className="text-xl w-7 text-center">{node.type === 'chest' ? '🎁' : node.icon}</span>
+      <p className="flex-1 min-w-0 text-sm font-semibold text-slate-700 truncate">
+        {node.type === 'chest' ? 'Cofre' : node.kind === 'focus' ? 'Foco del día' : node.label}
+      </p>
+      {node.type === 'stop' && node.kind !== 'focus' && (
+        <select value={node.link} onChange={e => setLink(node.id, e.target.value)}
+          className="w-36 bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 text-xs font-bold text-slate-600">
+          {Object.entries(PATH_LINKS).map(([id, l]) => <option key={id} value={id}>{l.emoji} {l.label}</option>)}
+        </select>
+      )}
+    </div>
+  )
+}
+
+export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSaveOrder, onAddPrayers, hasPrayers, onClose }) {
+  // Orden en borrador: se ve como en el camino (arriba = final del camino)
+  const savedIds = [...sequence].reverse().map(n => n.id)
+  const [orderDraft, setOrderDraft] = useState(null)
+  const listIds  = orderDraft || savedIds
+  const byId     = Object.fromEntries(sequence.map(n => [n.id, n]))
+  const sensors  = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+  function handleDragEnd({ active, over }) {
+    if (!over || active.id === over.id) return
+    setOrderDraft(arrayMove(listIds, listIds.indexOf(active.id), listIds.indexOf(over.id)))
+  }
   const [newReward, setNewReward] = useState('')
   const [stopIcon, setStopIcon]   = useState('⭐')
   const [stopName, setStopName]   = useState('')
@@ -368,20 +407,26 @@ export function PathSettingsSheet({ config, save, stops, setLink, onAddPrayers, 
           className="w-11 rounded-xl bg-blue-600 text-white flex items-center justify-center disabled:opacity-30"><Plus size={18} /></button>
       </div>
 
-      {/* Dónde se hace cada parada */}
-      <p className="mt-7 text-[11px] font-black text-slate-400 uppercase tracking-widest">📍 Dónde se hace cada parada</p>
-      <div className="mt-3 space-y-2">
-        {stops.filter(st => st.kind !== 'focus').map(st => (
-          <div key={st.id} className="flex items-center gap-2">
-            <span className="text-xl w-8 text-center">{st.icon}</span>
-            <p className="flex-1 min-w-0 text-sm font-semibold text-slate-700 truncate">{st.label}</p>
-            <select value={st.link} onChange={e => setLink(st.id, e.target.value)}
-              className="w-40 bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 text-xs font-bold text-slate-600">
-              {Object.entries(PATH_LINKS).map(([id, l]) => <option key={id} value={id}>{l.emoji} {l.label}</option>)}
-            </select>
+      {/* Orden y lugar de cada parada */}
+      <p className="mt-7 text-[11px] font-black text-slate-400 uppercase tracking-widest">📍 Orden y lugar de cada parada</p>
+      <p className="text-xs text-slate-500 mt-1 mb-2">Arriba = final del camino (junto al 🏆). Arrastra desde ⠿ para ordenar.</p>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={listIds} strategy={verticalListSortingStrategy}>
+          <div className="space-y-1">
+            {listIds.filter(id => byId[id]).map(id => (
+              <OrderRow key={id} node={byId[id]} setLink={setLink} />
+            ))}
           </div>
-        ))}
-      </div>
+        </SortableContext>
+      </DndContext>
+      {orderDraft && (
+        <div className="sticky bottom-0 mt-3 -mx-1 flex gap-2 bg-white/95 backdrop-blur py-2">
+          <button onClick={() => setOrderDraft(null)}
+            className="flex-1 py-3 rounded-2xl text-sm font-black bg-slate-100 text-slate-500">Cancelar</button>
+          <button onClick={() => { onSaveOrder([...orderDraft].reverse()); setOrderDraft(null) }}
+            className="flex-1 py-3 rounded-2xl text-sm font-black text-white bg-blue-600 shadow-[0_4px_0_#1d4ed8]">Guardar orden</button>
+        </div>
+      )}
     </Sheet>
   )
 }

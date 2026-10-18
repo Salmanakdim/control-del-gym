@@ -334,6 +334,8 @@ export default function Dashboard({ logs, setPage }) {
           save={saveConfig}
           stops={allStops.map(st => ({ ...st, link: linkOf(st.id), hidden: hidden.includes(st.id) }))}
           setLink={setLink}
+          sequence={sequence.map(n => n.type === 'stop' ? { ...n, link: linkOf(n.id) } : n)}
+          onSaveOrder={ids => saveConfig({ order: ids, ...(legacyChests ? { chestList } : {}) })}
           onAddPrayers={addPrayers}
           hasPrayers={PRAYERS.every(p => custom.some(c => c.label === p.label))}
           onClose={() => setShowSettings(false)}/>
