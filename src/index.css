@@ -38,3 +38,11 @@ p.duo-bounce { animation-name: duo-bounce-y; }
 .duo-cheer { animation: duo-cheer .9s ease-in-out infinite; }
 @keyframes duo-glow { 0%,100% { filter: drop-shadow(0 0 6px #facc15) } 50% { filter: drop-shadow(0 0 18px #facc15) } }
 .duo-glow { animation: duo-glow 1.6s ease-in-out infinite; }
+@keyframes duo-wiggle { 0%,100% { transform: rotate(0) } 20% { transform: rotate(-7deg) } 40% { transform: rotate(7deg) } 60% { transform: rotate(-4deg) } 80% { transform: rotate(0) } }
+.duo-wiggle { animation: duo-wiggle 1.4s ease-in-out infinite; transform-origin: bottom center; }
+@keyframes chest-open { 0% { transform: scale(1) rotate(0) } 30% { transform: scale(1.1) rotate(-12deg) } 60% { transform: scale(1.2) rotate(12deg) } 100% { transform: scale(1.6); opacity: 0 } }
+.chest-open { animation: chest-open .9s ease-in forwards; }
+@keyframes reward-pop { 0% { transform: scale(0) rotate(-20deg) } 70% { transform: scale(1.25) rotate(8deg) } 100% { transform: scale(1) rotate(0) } }
+.reward-pop { animation: reward-pop .6s cubic-bezier(.34,1.56,.64,1); }
+@keyframes sheet-up { from { transform: translateY(100%) } to { transform: translateY(0) } }
+.sheet-up { animation: sheet-up .28s cubic-bezier(.2,.9,.3,1); }
