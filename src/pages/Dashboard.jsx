@@ -120,6 +120,14 @@ export default function Dashboard({ logs, setPage }) {
   }
 
   // ── Camino ────────────────────────────────────────────────────────
+  // Modo editar: los cambios (orden, colores, cofres) van a un borrador hasta pulsar Guardar
+  const [draft, setDraft] = useState(null)
+  const cfg = draft ? { ...config, ...draft } : config
+  function updateLayout(changes) {
+    if (draft) setDraft(d => ({ ...d, ...changes }))
+    else saveConfig(changes)
+  }
+
   const hidden     = config.hidden || []
   const custom     = config.custom || []
   const customDone = config.customDone?.date === todayKey() ? config.customDone.ids : []
@@ -151,11 +159,11 @@ export default function Dashboard({ logs, setPage }) {
   }))
 
   // Cofres: lista propia; los antiguos (por número de parada) se convierten la primera vez
-  const legacyChests = !config.chestList
-  const chestList    = config.chestList || (config.chests || []).map(k => `chest_${k}`)
+  const legacyChests = !cfg.chestList
+  const chestList    = cfg.chestList || (cfg.chests || []).map(k => `chest_${k}`)
 
   // Secuencia de abajo a arriba según el orden guardado; lo nuevo va al final (arriba)
-  const order = config.order || []
+  const order = cfg.order || []
   const sortedStops = [...stops].sort((a, b) => {
     const ra = order.indexOf(a.id), rb = order.indexOf(b.id)
     return (ra === -1 ? 1e6 + allStops.indexOf(a) : ra) - (rb === -1 ? 1e6 + allStops.indexOf(b) : rb)
@@ -176,14 +184,14 @@ export default function Dashboard({ logs, setPage }) {
   const items = sortedStops
 
   function colorsOf(id) {
-    return STOP_COLORS[config.colors?.[id]] || STOP_COLORS.green
+    return STOP_COLORS[cfg.colors?.[id]] || STOP_COLORS.green
   }
   function addChest() {
     const id = newId('chest_')
-    saveConfig({ chestList: [...chestList, id], order: [...sequence.map(n => n.id), id] })
+    updateLayout({ chestList: [...chestList, id], order: [...sequence.map(n => n.id), id] })
   }
   function deleteChest(id) {
-    saveConfig({ chestList: chestList.filter(c => c !== id), order: sequence.map(n => n.id).filter(x => x !== id) })
+    updateLayout({ chestList: chestList.filter(c => c !== id), order: sequence.map(n => n.id).filter(x => x !== id) })
   }
   function addPrayers() {
     const have = new Set(custom.map(c => c.label))
@@ -279,8 +287,12 @@ export default function Dashboard({ logs, setPage }) {
           onDo={id => doNow(id)}
           onOpenChest={(id, available) => available && setChestSheet({ k: id, alreadyOpen: openedChests.has(id) })}
           onOpenSettings={() => setShowSettings(true)}
-          onReorder={ids => saveConfig({ order: ids, ...(legacyChests ? { chestList } : {}) })}
-          onSetColor={(id, k) => saveConfig({ colors: { ...config.colors, [id]: k } })}
+          edit={!!draft}
+          onStartEdit={() => setDraft({ order: sequence.map(n => n.id), chestList, colors: { ...(config.colors || {}) } })}
+          onSaveEdit={() => { saveConfig(draft); setDraft(null) }}
+          onCancelEdit={() => setDraft(null)}
+          onReorder={ids => updateLayout({ order: ids, ...(legacyChests ? { chestList } : {}) })}
+          onSetColor={(id, k) => updateLayout({ colors: { ...(cfg.colors || {}), [id]: k } })}
           onAddChest={addChest}
           onDeleteChest={deleteChest}/>
       )}

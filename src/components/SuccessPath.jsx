@@ -166,10 +166,10 @@ function StopNode({ item, colors, isCurrent, x, mood, edit, menuOpen, done, node
 export default function SuccessPath({
   sequence, colorsOf, openedChests,
   onToggle, onOpenStop, onDo, onOpenChest, onOpenSettings,
+  edit, onStartEdit, onSaveEdit, onCancelEdit,
   onReorder, onSetColor, onAddChest, onDeleteChest,
 }) {
   const currentRef = useRef(null)
-  const [edit, setEdit] = useState(false)
   const [menu, setMenu] = useState(null)   // id de la parada con el menú abierto
 
   const stops = sequence.filter(n => n.type === 'stop')
@@ -223,7 +223,7 @@ export default function SuccessPath({
           <span>{level.emoji}</span>
           <span className="text-xs font-black" style={{ color: level.color }}>{level.label}</span>
           <span className="text-xs font-black text-slate-400 tabular-nums ml-1">{done}/{total}</span>
-          <button onClick={() => { setEdit(e => !e); setMenu(null) }} aria-label="Editar camino"
+          <button onClick={() => { if (!edit) onStartEdit(); setMenu(null) }} aria-label="Editar camino"
             className={`ml-1 w-8 h-8 rounded-xl shadow-sm flex items-center justify-center ${edit ? 'bg-blue-600 text-white' : 'bg-white text-slate-500'}`}>
             <Pencil size={14} />
           </button>
@@ -240,14 +240,15 @@ export default function SuccessPath({
       {edit && (
         <div className="sticky top-2 z-20 mt-4 bg-blue-50 border border-blue-100 rounded-2xl px-3 py-3 flex items-center gap-2 shadow-sm">
           <p className="flex-1 text-xs text-blue-800 font-semibold leading-snug">
-            Arrastra desde <GripVertical size={12} className="inline -mt-0.5" /> para ordenar. Toca una parada para cambiar su color.
+            Arrastra desde <GripVertical size={12} className="inline -mt-0.5" /> para ordenar y toca una parada para su color. Nada cambia hasta que pulses Guardar.
           </p>
           <button onClick={onAddChest} aria-label="Añadir cofre"
             className="flex items-center gap-0.5 px-2.5 py-2 rounded-xl text-xs font-black text-amber-900"
             style={{ background: GOLD.bg, boxShadow: `0 3px 0 ${GOLD.shadow}` }}>
             <Plus size={13} strokeWidth={3} />🎁
           </button>
-          <button onClick={() => setEdit(false)} className="px-3 py-2 rounded-xl text-xs font-black bg-blue-600 text-white">Listo</button>
+          <button onClick={() => { setMenu(null); onCancelEdit() }} className="px-2.5 py-2 rounded-xl text-xs font-black bg-white text-slate-500 border border-slate-200">Cancelar</button>
+          <button onClick={() => { setMenu(null); onSaveEdit() }} className="px-3 py-2 rounded-xl text-xs font-black bg-blue-600 text-white">Guardar</button>
         </div>
       )}
 
