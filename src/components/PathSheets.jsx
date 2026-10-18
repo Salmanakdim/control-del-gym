@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Play, Check, RotateCcw, Plus, Minus, ArrowLeft, Shuffle, Eye, EyeOff, Trash2, GripVertical } from 'lucide-react'
+import { X, Play, Check, RotateCcw, Plus, Minus, ArrowLeft, Shuffle, Eye, EyeOff, Trash2, GripVertical, Pencil } from 'lucide-react'
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -240,33 +240,94 @@ export function ChestSheet({ rewards, breakMin, alreadyOpen, onOpened, onClose }
 }
 
 // ── Personalizar camino ────────────────────────────────────────────
-// Fila de la lista "Orden y lugar": se arrastra desde el asa ⠿
-function OrderRow({ node, setLink }) {
+// Fila de la lista "Orden y lugar": se arrastra desde el asa ⠿; el lápiz abre el editor
+function OrderRow({ node, setLink, onEdit, onHide, onDelete }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: node.id })
+  const [open, setOpen]       = useState(false)
+  const [icon, setIcon]       = useState(node.icon || '⭐')
+  const [label, setLabel]     = useState(node.label || '')
+  const [confirm, setConfirm] = useState(false)
+  const isChest = node.type === 'chest'
+  const isFocus = node.kind === 'focus'
+  const isHabit = node.kind === 'habit'
+
   return (
     <div ref={setNodeRef} {...attributes}
-      className={`flex items-center gap-2 rounded-xl py-1 ${isDragging ? 'relative z-10 bg-white shadow-lg' : ''}`}
+      className={`rounded-xl ${isDragging ? 'relative z-10 bg-white shadow-lg' : ''} ${open ? 'bg-slate-50 p-2 my-1' : 'py-1'}`}
       style={{ transform: CSS.Translate.toString(transform), transition }}>
-      <button ref={setActivatorNodeRef} {...listeners} aria-label="Arrastrar"
-        className="w-8 h-9 rounded-lg bg-slate-50 border border-slate-200 text-slate-400 flex items-center justify-center flex-shrink-0"
-        style={{ touchAction: 'none' }}>
-        <GripVertical size={15} />
-      </button>
-      <span className="text-xl w-7 text-center">{node.type === 'chest' ? '🎁' : node.icon}</span>
-      <p className="flex-1 min-w-0 text-sm font-semibold text-slate-700 truncate">
-        {node.type === 'chest' ? 'Cofre' : node.kind === 'focus' ? 'Foco del día' : node.label}
-      </p>
-      {node.type === 'stop' && node.kind !== 'focus' && (
-        <select value={node.link} onChange={e => setLink(node.id, e.target.value)}
-          className="w-36 bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 text-xs font-bold text-slate-600">
-          {Object.entries(PATH_LINKS).map(([id, l]) => <option key={id} value={id}>{l.emoji} {l.label}</option>)}
-        </select>
+      <div className="flex items-center gap-2">
+        <button ref={setActivatorNodeRef} {...listeners} aria-label="Arrastrar"
+          className="w-8 h-9 rounded-lg bg-slate-50 border border-slate-200 text-slate-400 flex items-center justify-center flex-shrink-0"
+          style={{ touchAction: 'none' }}>
+          <GripVertical size={15} />
+        </button>
+        <span className="text-xl w-7 text-center">{isChest ? '🎁' : node.icon}</span>
+        <p className="flex-1 min-w-0 text-sm font-semibold text-slate-700 truncate">
+          {isChest ? 'Cofre' : isFocus ? 'Foco del día' : node.label}
+        </p>
+        {node.type === 'stop' && !isFocus && (
+          <select value={node.link} onChange={e => setLink(node.id, e.target.value)}
+            className="w-32 bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 text-xs font-bold text-slate-600">
+            {Object.entries(PATH_LINKS).map(([id, l]) => <option key={id} value={id}>{l.emoji} {l.label}</option>)}
+          </select>
+        )}
+        {isChest ? (
+          <button onClick={() => onDelete(node.id)} aria-label="Borrar cofre"
+            className="w-8 h-9 rounded-lg flex items-center justify-center text-slate-300 hover:text-red-500 active:bg-red-50">
+            <Trash2 size={16} />
+          </button>
+        ) : (
+          <button onClick={() => { setOpen(o => !o); setConfirm(false) }} aria-label="Editar parada"
+            className={`w-8 h-9 rounded-lg flex items-center justify-center ${open ? 'bg-blue-600 text-white' : 'text-slate-400 active:bg-slate-100'}`}>
+            <Pencil size={15} />
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className="mt-2 space-y-2">
+          {!isFocus && (
+            <div className="flex gap-2">
+              <input value={icon} onChange={e => setIcon(e.target.value)} maxLength={4} aria-label="Emoji de la parada"
+                className="w-12 text-center border border-slate-200 rounded-xl py-2 text-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input value={label} onChange={e => setLabel(e.target.value)} aria-label="Nombre de la parada"
+                className="flex-1 min-w-0 border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <button onClick={() => { onEdit(node.id, { icon: icon.trim() || '⭐', label: label.trim() || node.label }); setOpen(false) }}
+                disabled={!label.trim()}
+                className="px-3 rounded-xl bg-blue-600 text-white text-xs font-black disabled:opacity-30">Guardar</button>
+            </div>
+          )}
+          {confirm ? (
+            <div className="bg-red-50 border border-red-100 rounded-xl p-2.5">
+              <p className="text-xs font-bold text-red-700">
+                {isHabit ? '¿Borrar el hábito? Se borra también su historial y no se puede deshacer.' : '¿Borrar esta parada?'}
+              </p>
+              <div className="flex gap-2 mt-2">
+                <button onClick={() => setConfirm(false)} className="flex-1 py-2 rounded-lg bg-white text-xs font-black text-slate-500">No</button>
+                <button onClick={() => onDelete(node.id)} className="flex-1 py-2 rounded-lg bg-red-500 text-xs font-black text-white">Sí, borrar</button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <button onClick={() => onHide(node.id)}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-black text-slate-500">
+                <EyeOff size={13} /> Ocultar del camino
+              </button>
+              {!isFocus && (
+                <button onClick={() => setConfirm(true)}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white border border-red-200 text-xs font-black text-red-500">
+                  <Trash2 size={13} /> {isHabit ? 'Borrar hábito' : 'Borrar'}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
   )
 }
 
-export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSaveOrder, onAddChest, onAddPrayers, hasPrayers, onClose }) {
+export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSaveOrder, onAddChest, onEditStop, onDeleteStop, onAddPrayers, hasPrayers, onClose }) {
   // Orden en borrador: se ve como en el camino (arriba = final del camino)
   const savedIds = [...sequence].reverse().map(n => n.id)
   const [orderDraft, setOrderDraft] = useState(null)
@@ -301,13 +362,6 @@ export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSa
     save({ custom: [...custom, { id, icon: stopIcon.trim() || '⭐', label, link: stopLink }] })
     setStopName(''); setStopIcon('⭐'); setStopLink('none')
   }
-  function deleteStop(id) {
-    save({
-      custom: custom.filter(x => x.id !== id),
-      hidden: hidden.filter(x => x !== id),
-      customDone: { ...config.customDone, ids: (config.customDone?.ids || []).filter(x => x !== id) },
-    })
-  }
 
   return (
     <Sheet onClose={onClose}>
@@ -331,7 +385,7 @@ export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSa
               {st.hidden ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
             {st.kind === 'custom' && (
-              <button onClick={() => deleteStop(st.id)} aria-label="Borrar parada"
+              <button onClick={() => onDeleteStop(st.id)} aria-label="Borrar parada"
                 className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-300 hover:text-red-500 active:bg-red-50">
                 <Trash2 size={16} />
               </button>
@@ -397,7 +451,8 @@ export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSa
         <SortableContext items={listIds} strategy={verticalListSortingStrategy}>
           <div className="space-y-1">
             {listIds.filter(id => byId[id]).map(id => (
-              <OrderRow key={id} node={byId[id]} setLink={setLink} />
+              <OrderRow key={id} node={byId[id]} setLink={setLink}
+                onEdit={onEditStop} onHide={toggleHidden} onDelete={onDeleteStop} />
             ))}
           </div>
         </SortableContext>

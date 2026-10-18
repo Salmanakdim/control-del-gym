@@ -190,6 +190,34 @@ export default function Dashboard({ logs, setPage }) {
     const id = newId('chest_')
     updateLayout({ chestList: [...chestList, id], order: [...sequence.map(n => n.id), id] })
   }
+  // Editar nombre/emoji: paradas propias en la config; hábitos en su tabla de Supabase
+  async function editStop(id, { icon, label }) {
+    if (custom.some(c => c.id === id)) {
+      return saveConfig({ custom: custom.map(c => c.id === id ? { ...c, icon, label } : c) })
+    }
+    setHabits(prev => prev.map(h => h.id === id ? { ...h, icon, name: label } : h))
+    await supabase.from('habits').update({ icon, name: label }).eq('id', id).eq('user_id', user.id)
+  }
+
+  // Borrar: cofre, parada propia o hábito (este último con su historial)
+  async function deleteStop(id) {
+    if (chestList.includes(id)) return deleteChest(id)
+    const clean = {
+      hidden: hidden.filter(x => x !== id),
+      order: (config.order || []).filter(x => x !== id),
+    }
+    if (custom.some(c => c.id === id)) {
+      return saveConfig({
+        ...clean,
+        custom: custom.filter(c => c.id !== id),
+        customDone: { ...config.customDone, ids: (config.customDone?.ids || []).filter(x => x !== id) },
+      })
+    }
+    setHabits(prev => prev.filter(h => h.id !== id))
+    saveConfig(clean)
+    await supabase.from('habits').delete().eq('id', id).eq('user_id', user.id)
+  }
+
   function deleteChest(id) {
     updateLayout({ chestList: chestList.filter(c => c !== id), order: sequence.map(n => n.id).filter(x => x !== id) })
   }
@@ -337,6 +365,8 @@ export default function Dashboard({ logs, setPage }) {
           sequence={sequence.map(n => n.type === 'stop' ? { ...n, link: linkOf(n.id) } : n)}
           onSaveOrder={ids => saveConfig({ order: ids, ...(legacyChests ? { chestList } : {}) })}
           onAddChest={addChest}
+          onEditStop={editStop}
+          onDeleteStop={deleteStop}
           onAddPrayers={addPrayers}
           hasPrayers={PRAYERS.every(p => custom.some(c => c.label === p.label))}
           onClose={() => setShowSettings(false)}/>
