@@ -49,16 +49,6 @@ function Bubble({ title, subtitle, color = '#58cc02', children }) {
   )
 }
 
-function MiniBtn({ color, onClick, children, label }) {
-  return (
-    <button onClick={onClick} aria-label={label}
-      className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-black text-white active:translate-y-0.5"
-      style={{ background: color.bg, boxShadow: `0 3px 0 ${color.shadow}` }}>
-      {children}
-    </button>
-  )
-}
-
 // Detecta "mantener pulsado" sin interferir con el scroll
 function useLongPress(onLong, onTap) {
   const timer = useRef(null)
@@ -165,14 +155,7 @@ function StopNode({ item, colors, isCurrent, x, mood, edit, menuOpen, done, node
           <button onClick={onCloseMenu} className="w-full mt-1 py-2 text-xs font-bold text-slate-400">Cerrar</button>
         </div>
       ) : isCurrent && !edit ? (
-        <Bubble title={done === 0 ? 'EMPEZAR' : 'SIGUIENTE'} subtitle={item.label}>
-          <div className="flex gap-2 mt-2 justify-center">
-            {item.canCheck !== false
-              ? <MiniBtn color={STOP_COLORS.green} onClick={onSetDone} label="Marcar como hecho"><Check size={13} strokeWidth={3.5} /> Hecho</MiniBtn>
-              : <MiniBtn color={{ bg: '#f59e0b', shadow: '#d97706' }} onClick={onMore} label="Escribir"><Pencil size={12} strokeWidth={3} /> Escribir</MiniBtn>}
-            {item.canDo && <MiniBtn color={STOP_COLORS.blue} onClick={onDo} label="Hacer ahora"><Play size={12} fill="white" /> Hacer</MiniBtn>}
-          </div>
-        </Bubble>
+        <Bubble title={done === 0 ? 'EMPEZAR' : 'SIGUIENTE'} subtitle={item.label} />
       ) : (
         <p className="absolute top-[74px] text-[10px] font-bold text-slate-500 max-w-[90px] truncate text-center">{item.label}</p>
       )}
@@ -318,7 +301,7 @@ export default function SuccessPath({
               const menuOpen  = menu === node.id
               return (
                 <Row key={node.id} id={node.id} x={x} edit={edit} z={menuOpen ? 'z-40' : 'z-0'}
-                  height={isCurrent && !edit ? ROW + 96 : ROW} marginTop={isCurrent && !edit ? 14 : 0}>
+                  height={isCurrent && !edit ? ROW + 40 : ROW} marginTop={isCurrent && !edit ? 14 : 0}>
                   <StopNode item={node} colors={colorsOf(node.id)} isCurrent={isCurrent} x={x} mood={mood} edit={edit}
                     menuOpen={menuOpen} done={done} nodeRef={isCurrent ? currentRef : undefined}
                     onTap={() => edit ? setMenu(menuOpen ? null : node.id) : node.canCheck === false ? onOpenStop(node.id) : onToggle(node.id)}
