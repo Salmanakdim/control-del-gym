@@ -26,6 +26,10 @@ import Revision from './pages/Revision'
 import Auth from './pages/Auth'
 import { Play, Pause } from 'lucide-react'
 
+// Barra de abajo (Inicio, Entreno, Hábitos…) desactivada de momento; en el móvil
+// se navega con el menú ☰. Para volver a mostrarla, poner true.
+const SHOW_BOTTOM_NAV = false
+
 const MODE_COLORS = { work: '#2563eb', break: '#16a34a', longbreak: '#7c3aed' }
 const MODE_LABELS = { work: 'Trabajando', break: 'Descansando', longbreak: 'Descanso largo' }
 
@@ -127,7 +131,7 @@ function AppInner() {
   return (
     <div className="flex h-screen bg-slate-100">
       <Sidebar page={page} setPage={navigate} />
-      <BottomNav page={page} setPage={navigate} />
+      {SHOW_BOTTOM_NAV && <BottomNav page={page} setPage={navigate} />}
 
       {isTasks ? (
         <main className="flex-1">

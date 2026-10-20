@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { Plus, X, Pencil, Trash2, Sun, Moon, Check, Settings2 } from 'lucide-react'
+import { Plus, X, Pencil, Trash2, Sun, Moon, Check, Settings2, ClipboardList } from 'lucide-react'
 
 function todayStr() { return new Date().toISOString().split('T')[0] }
 
@@ -263,6 +263,8 @@ export default function Afirmaciones() {
   const [session,      setSession]      = useState(null)
   const [showAdd,      setShowAdd]      = useState(false)
   const [newText,      setNewText]      = useState('')
+  const [showPaste,    setShowPaste]    = useState(false)
+  const [pasteText,    setPasteText]    = useState('')
   const [editId,       setEditId]       = useState(null)
   const [editText,     setEditText]     = useState('')
   const [showSettings, setShowSettings] = useState(false)
@@ -290,6 +292,21 @@ export default function Afirmaciones() {
     if (data) setAffirmations(prev => [...prev, data])
     setNewText('')
     setShowAdd(false)
+  }
+
+  // Una por línea; se quitan viñetas ("- ", "•") y marcas invisibles de dirección
+  // que vienen al copiar, y se saltan las que ya están en la lista.
+  async function importList() {
+    const have = new Set(affirmations.map(a => a.text.trim()))
+    const texts = [...new Set(pasteText.split(/\r?\n/)
+      .map(l => l.replace(/[‎‏‪-‮]/g, '').replace(/^\s*[-•*–]\s*/, '').trim())
+      .filter(t => t && !have.has(t)))]
+    if (!texts.length) { setShowPaste(false); setPasteText(''); return }
+    const rows = texts.map((text, i) => ({ user_id: user.id, text, position: affirmations.length + i }))
+    const { data } = await supabase.from('affirmations').insert(rows).select()
+    if (data) setAffirmations(prev => [...prev, ...data.sort((a, b) => a.position - b.position)])
+    setPasteText('')
+    setShowPaste(false)
   }
 
   async function deleteAffirmation(id) {
@@ -394,11 +411,43 @@ export default function Afirmaciones() {
             <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
               Mis afirmaciones ({affirmations.length})
             </p>
-            <button onClick={() => setShowAdd(true)}
-              className="flex items-center gap-1 bg-blue-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold active:bg-blue-700">
-              <Plus size={12}/> Añadir
-            </button>
+            <div className="flex gap-1.5">
+              <button onClick={() => { setShowPaste(true); setShowAdd(false) }}
+                className="flex items-center gap-1 bg-slate-100 text-slate-600 px-3 py-1.5 rounded-xl text-xs font-bold active:bg-slate-200">
+                <ClipboardList size={12}/> Pegar lista
+              </button>
+              <button onClick={() => { setShowAdd(true); setShowPaste(false) }}
+                className="flex items-center gap-1 bg-blue-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold active:bg-blue-700">
+                <Plus size={12}/> Añadir
+              </button>
+            </div>
           </div>
+
+          {/* Pegar varias de una vez */}
+          {showPaste && (
+            <div className="bg-white rounded-2xl shadow-sm p-4 mb-3 space-y-3">
+              <p className="text-xs text-slate-500 font-medium">Pega tu lista: cada línea es una afirmación. Las que ya tienes no se repiten.</p>
+              <textarea
+                autoFocus
+                dir="auto"
+                value={pasteText}
+                onChange={e => setPasteText(e.target.value)}
+                placeholder={'- Soy fuerte y capaz\n- La constancia es el secreto del éxito'}
+                rows={8}
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-700 font-medium resize-y focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-300"
+              />
+              <div className="flex gap-2">
+                <button onClick={() => { setShowPaste(false); setPasteText('') }}
+                  className="flex-1 py-2.5 bg-slate-100 text-slate-600 font-semibold rounded-xl text-sm">
+                  Cancelar
+                </button>
+                <button onClick={importList} disabled={!pasteText.trim()}
+                  className="flex-1 py-2.5 bg-blue-600 text-white font-bold rounded-xl text-sm disabled:opacity-40 active:bg-blue-700">
+                  Añadir todas
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Add form */}
           {showAdd && (
@@ -456,7 +505,7 @@ export default function Afirmaciones() {
                 ) : (
                   <div className="flex items-start gap-3">
                     <span className="text-lg mt-0.5 flex-shrink-0">💬</span>
-                    <p className="flex-1 text-sm font-semibold text-slate-700 leading-snug">{a.text}</p>
+                    <p dir="auto" className="flex-1 text-sm font-semibold text-slate-700 leading-snug text-start">{a.text}</p>
                     <div className="flex gap-1 flex-shrink-0">
                       <button onClick={() => { setEditId(a.id); setEditText(a.text) }}
                         className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center active:bg-slate-200">

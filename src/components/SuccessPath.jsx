@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { Settings, Check, Play, Pencil, GripVertical, X, Plus, RotateCcw, SlidersHorizontal } from 'lucide-react'
+import { Settings, Check, Play, Pencil, GripVertical, X, Plus, RotateCcw, SlidersHorizontal, BarChart3 } from 'lucide-react'
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import Flowy from './Flowy'
 import { STOP_COLORS } from '../lib/pathConfig'
+import { visionForToday } from '../lib/vision'
 
 // Camino al éxito estilo Duolingo: se empieza abajo y se sube hasta el trofeo.
 // Toque: marca/desmarca. Mantener pulsado: menú de opciones. ✏️ Editar: ordenar, colores y cofres.
@@ -45,6 +46,121 @@ function Bubble({ title, subtitle, color = '#58cc02', children }) {
         {subtitle && <p className="text-[10px] font-bold text-slate-500 max-w-[160px] truncate mx-auto">{subtitle}</p>}
         {children}
       </div>
+    </div>
+  )
+}
+
+// ── Fondo: cielo según la hora, sendero entre paradas y flores al completar ──
+
+function skyPhase(hour) {
+  if (hour >= 5 && hour < 8)   return 'dawn'
+  if (hour >= 8 && hour < 17)  return 'day'
+  if (hour >= 17 && hour < 20) return 'sunset'
+  return 'night'
+}
+
+// Cuadros del vision board en el lado libre de algunas filas (el contrario al
+// desvío de la curva), así nunca tapan una parada.
+// La fila solo mide lo que su parada y está desplazada x px. Desde su centro
+// (50 %) se resta medio ancho del camino (50cqw, el contenedor) para llegar al borde.
+const atEdge = (side, x, margin) => side === 'left'
+  ? { left: `calc(50% - 50cqw + ${margin - x}px)` }
+  : { right: `calc(50% - 50cqw + ${margin + x}px)` }
+
+function VisionFrame({ src, x, side, tilt, onOpen }) {
+  return (
+    <button onClick={onOpen} aria-label="Ver imagen del vision board"
+      className="absolute -top-6 p-1.5 pb-4 bg-white rounded-md shadow-lg active:scale-95 transition-transform"
+      style={{ ...atEdge(side, x, 12), transform: `rotate(${tilt}deg)` }}>
+      <img src={src} alt="" draggable={false} decoding="async" className="block w-[104px] h-[128px] object-cover rounded-sm select-none" />
+    </button>
+  )
+}
+
+// Tramo de sendero desde esta parada hasta la de abajo: punteado gris por
+// recorrer, verde lo ya andado. Se pinta antes que la parada para quedar detrás.
+function Trail({ dx, dy, walked }) {
+  const pad = 8
+  const minX = Math.min(0, dx) - pad
+  const w = Math.abs(dx) + pad * 2
+  return (
+    <svg aria-hidden className="absolute pointer-events-none overflow-visible"
+      style={{ left: `calc(50% + ${minX}px)`, top: 32, width: w, height: dy }}>
+      <line x1={-minX} y1={0} x2={dx - minX} y2={dy}
+        stroke={walked ? '#58cc02' : 'rgba(71,85,105,.22)'}
+        strokeWidth={7} strokeLinecap="round" strokeDasharray="0.1 15" />
+    </svg>
+  )
+}
+
+// Al completar una parada brota algo en su hueco (estrellas de noche)
+// Florecitas salpicadas por todo el camino: en el lado de la curva, una o dos
+// según el sitio que quede hasta el borde; en el lado libre, dos si no hay un
+// cuadro cerca ni está Flowy. Posiciones fijas según la fila, para que no
+// "salten" al volver a pintar.
+const SMALL_FLOWERS = ['🌸', '🌼', '🌷', '🌺', '💮', '🌻', '🌼']
+function Meadow({ pos, x, side, freeBusy }) {
+  const other = side === 'left' ? 'right' : 'left'
+  const items = [{ s: other, gap: 46 + (pos * 11) % 22, top: 30 + (pos * 7) % 30 }]
+  if (Math.abs(x) <= 44) items.push({ s: other, gap: 84 + (pos * 7) % 24, top: 2 + (pos * 13) % 22 })
+  if (!freeBusy) {
+    items.push({ s: side, gap: 74 + (pos * 13) % 30, top: 4 + (pos * 5) % 20 })
+    items.push({ s: side, gap: 110 + (pos * 17) % 26, top: 44 + (pos * 3) % 24 })
+  }
+  return items.map((f, k) => (
+    <span key={k} aria-hidden className="absolute text-[15px] leading-none pointer-events-none select-none"
+      style={{ top: f.top, ...(f.s === 'left' ? { right: `calc(50% + ${f.gap}px)` } : { left: `calc(50% + ${f.gap}px)` }) }}>
+      {SMALL_FLOWERS[(pos * 3 + k) % SMALL_FLOWERS.length]}
+    </span>
+  ))
+}
+
+const BLOOMS = { day: ['🌸', '🌼', '🌷', '🌻'], night: ['⭐', '✨', '🌟'] }
+function Bloom({ side, night, seed }) {
+  const list = night ? BLOOMS.night : BLOOMS.day
+  const gap = 40 + (seed * 5) % 10
+  return (
+    <span aria-hidden className="absolute top-5 text-xl duo-pop pointer-events-none select-none"
+      style={side === 'left' ? { right: `calc(50% + ${gap}px)` } : { left: `calc(50% + ${gap}px)` }}>
+      {list[seed % list.length]}
+    </span>
+  )
+}
+
+// Celebración al completar todo el camino: rayos girando detrás del trofeo,
+// confeti cayendo sin parar y destellos que saltan alrededor.
+const CONFETTI_COLORS = ['#ffc800', '#58cc02', '#1cb0f6', '#ff4b4b', '#ce82ff', '#ff9600']
+const CONFETTI = Array.from({ length: 28 }, (_, i) => ({
+  left: (i * 41 + 9) % 100,           // % del ancho de la zona
+  delay: ((i * 37) % 30) / 10,        // 0–3 s
+  dur: 2.4 + ((i * 13) % 12) / 10,    // 2.4–3.5 s
+  w: 6 + (i % 3) * 2,
+  color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+  round: i % 4 === 0,
+}))
+const SPARKS = [[-70, -30, 0], [78, -10, 0.5], [-58, 62, 1], [66, 70, 1.4], [0, -78, 0.8], [-90, 20, 1.8], [92, 34, 1.1]]
+
+function WinBurst() {
+  return (
+    <div aria-hidden className="absolute left-1/2 top-1/2 pointer-events-none">
+      {/* Rayos de sol girando */}
+      <div className="absolute w-64 h-64 -left-32 -top-32 rounded-full win-rays"
+        style={{ background: 'repeating-conic-gradient(#ffd90055 0deg 12deg, transparent 12deg 30deg)', maskImage: 'radial-gradient(circle, #000 35%, transparent 70%)', WebkitMaskImage: 'radial-gradient(circle, #000 35%, transparent 70%)' }} />
+      {/* Onda dorada que sale del trofeo */}
+      <div className="absolute w-24 h-24 -left-12 -top-12 rounded-full border-[6px] border-yellow-300 duo-signal" />
+      <div className="absolute w-24 h-24 -left-12 -top-12 rounded-full border-[6px] border-yellow-300 duo-signal" style={{ animationDelay: '1s' }} />
+      {/* Confeti */}
+      <div className="absolute w-80 h-60 -left-40 -top-24 overflow-hidden">
+        {CONFETTI.map((c, i) => (
+          <span key={i} className="absolute top-0 win-confetti"
+            style={{ left: `${c.left}%`, width: c.w, height: c.round ? c.w : c.w * 1.8, background: c.color,
+              borderRadius: c.round ? '50%' : 2, animationDelay: `${c.delay}s`, animationDuration: `${c.dur}s` }} />
+        ))}
+      </div>
+      {/* Destellos */}
+      {SPARKS.map(([x, y, d], i) => (
+        <span key={i} className="absolute text-xl win-spark" style={{ left: x - 10, top: y - 12, animationDelay: `${d}s` }}>✨</span>
+      ))}
     </div>
   )
 }
@@ -101,7 +217,14 @@ function StopNode({ item, colors, isCurrent, x, mood, edit, menuOpen, done, node
   return (
     <>
       <div className="relative" ref={nodeRef}>
-        {isCurrent && !edit && <div className="absolute -inset-2.5 rounded-full border-[6px] border-slate-200" />}
+        {isCurrent && !edit && (
+          <>
+            <div className="absolute -inset-2.5 rounded-full border-[6px] border-slate-200" />
+            {/* Ondas que salen del anillo, como una señal: "¡aquí toca ahora!" */}
+            <div className="absolute -inset-2.5 rounded-full border-4 duo-signal pointer-events-none" style={{ borderColor: colors.bg }} />
+            <div className="absolute -inset-2.5 rounded-full border-4 duo-signal pointer-events-none" style={{ borderColor: colors.bg, animationDelay: '1s' }} />
+          </>
+        )}
         <Round key={`${item.id}-${item.done}`} colors={filled || edit ? colors : GREY} dim={!filled && !edit}
           pop={item.done} label={item.label} {...(edit ? { onClick: onTap } : press)}>
           {item.icon}
@@ -157,7 +280,7 @@ function StopNode({ item, colors, isCurrent, x, mood, edit, menuOpen, done, node
       ) : isCurrent && !edit ? (
         <Bubble title={done === 0 ? 'EMPEZAR' : 'SIGUIENTE'} subtitle={item.label} />
       ) : (
-        <p className="absolute top-[74px] text-[10px] font-bold text-slate-500 max-w-[90px] truncate text-center">{item.label}</p>
+        <p className="absolute top-[74px] px-1.5 py-0.5 rounded-md bg-white/80 text-[10px] font-bold text-slate-500 max-w-[90px] truncate text-center">{item.label}</p>
       )}
     </>
   )
@@ -165,12 +288,13 @@ function StopNode({ item, colors, isCurrent, x, mood, edit, menuOpen, done, node
 
 export default function SuccessPath({
   sequence, colorsOf, openedChests,
-  onToggle, onOpenStop, onDo, onOpenChest, onOpenSettings,
+  onToggle, onOpenStop, onDo, onOpenChest, onOpenSettings, onOpenStats,
   edit, onStartEdit, onSaveEdit, onCancelEdit,
   onReorder, onSetColor, onAddChest, onDeleteChest,
 }) {
   const currentRef = useRef(null)
   const [menu, setMenu] = useState(null)   // id de la parada con el menú abierto
+  const [viewImg, setViewImg] = useState(null) // imagen del vision board abierta en grande
 
   const stops = sequence.filter(n => n.type === 'stop')
   const total = stops.length
@@ -213,9 +337,63 @@ export default function SuccessPath({
   let stopsSoFar = 0
   sequence.forEach(n => { if (n.type === 'stop') stopsSoFar++; else chestNeed[n.id] = stopsSoFar })
 
+  // Cielo según la hora; se revisa cada 5 minutos
+  const [phase, setPhase] = useState(() => skyPhase(new Date().getHours()))
+  useEffect(() => {
+    const t = setInterval(() => setPhase(skyPhase(new Date().getHours())), 5 * 60 * 1000)
+    return () => clearInterval(t)
+  }, [])
+  const night = phase === 'night'
+
+  // Medidas de cada fila, para trazar el sendero hasta la parada de abajo
+  const layout = sequence.map((n, pos) => {
+    const isCur = n.type === 'stop' && !win && n.id === curId
+    const chestReady = n.type === 'chest' && done >= chestNeed[n.id] && !openedChests.has(n.id)
+    return {
+      x: OFFSETS[pos % OFFSETS.length],
+      height: n.type === 'chest' ? (chestReady && !edit ? ROW + 30 : ROW) : (isCur && !edit ? ROW + 40 : ROW),
+      marginTop: isCur && !edit ? 14 : 0,
+      reached: n.type === 'stop' ? n.done || isCur : done >= chestNeed[n.id],
+    }
+  })
+  // Tramo entre esta parada y la de abajo (la anterior del camino)
+  const trailBelow = (pos) => {
+    if (edit || pos === 0) return null
+    const cur = layout[pos], below = layout[pos - 1]
+    return <Trail dx={below.x - cur.x} dy={cur.height + below.marginTop} walked={cur.reached && below.reached} />
+  }
+  const freeSide = (pos, x) => x > 0 ? 'left' : x < 0 ? 'right' : pos % OFFSETS.length === 0 ? 'left' : 'right'
+  // Un cuadro del vision board en una de cada dos filas (saltando la actual,
+  // donde está Flowy) hasta usar todas las imágenes.
+  // Un cuadro del vision board en una de cada dos filas (saltando la actual,
+  // donde está Flowy) hasta usar todas las imágenes.
+  const vision = visionForToday()
+  const decor = {}
+  let nextImg = 0
+  sequence.forEach((n, pos) => {
+    const isCur = n.type === 'stop' && !win && n.id === curId
+    if (pos % 2 === 0 && !isCur && nextImg < vision.length) {
+      decor[pos] = { img: vision[nextImg], tilt: nextImg % 2 ? 4 : -4 }
+      nextImg++
+    }
+  })
+  const sideAt = (pos) => freeSide(pos, OFFSETS[pos % OFFSETS.length])
+  const hasFrame = (pos) => !!decor[pos]
+  // Un cuadro en esta fila o en la de al lado por el mismo lado ocupa el hueco
+  const frameNear = (pos) => [pos - 1, pos, pos + 1].some(q => decor[q] && sideAt(q) === sideAt(pos))
+  const scenery = (pos, x) => {
+    const d = decor[pos]
+    return d ? <VisionFrame src={d.img} x={x} side={sideAt(pos)} tilt={d.tilt} onOpen={() => setViewImg(d.img)} /> : null
+  }
+
   return (
     <div>
       {menu && <div className="fixed inset-0 z-30" onClick={() => setMenu(null)} />}
+      {viewImg && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6" onClick={() => setViewImg(null)}>
+          <img src={viewImg} alt="" className="max-w-full max-h-[85vh] rounded-2xl shadow-2xl reward-pop" />
+        </div>
+      )}
 
       <div className="flex items-center justify-between">
         <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Camino al éxito</p>
@@ -223,8 +401,12 @@ export default function SuccessPath({
           <span>{level.emoji}</span>
           <span className="text-xs font-black" style={{ color: level.color }}>{level.label}</span>
           <span className="text-xs font-black text-slate-400 tabular-nums ml-1">{done}/{total}</span>
+          <button onClick={onOpenStats} aria-label="Estadísticas del camino"
+            className="ml-1 w-8 h-8 rounded-xl bg-white shadow-sm flex items-center justify-center text-slate-500 active:bg-slate-50">
+            <BarChart3 size={15} />
+          </button>
           <button onClick={() => { if (!edit) onStartEdit(); setMenu(null) }} aria-label="Editar camino"
-            className={`ml-1 w-8 h-8 rounded-xl shadow-sm flex items-center justify-center ${edit ? 'bg-blue-600 text-white' : 'bg-white text-slate-500'}`}>
+            className={`w-8 h-8 rounded-xl shadow-sm flex items-center justify-center ${edit ? 'bg-blue-600 text-white' : 'bg-white text-slate-500'}`}>
             <Pencil size={14} />
           </button>
           <button onClick={onOpenSettings} aria-label="Personalizar camino"
@@ -252,12 +434,18 @@ export default function SuccessPath({
         </div>
       )}
 
-      <div className="flex flex-col items-center mt-6 pb-4">
+      <div className="relative mt-6 overflow-x-clip" style={{ containerType: 'inline-size' }}>
+      <div className="relative flex flex-col items-center pt-6 pb-4">
         {/* Trofeo (arriba del todo) */}
         <div className="relative flex flex-col items-center mb-8">
-          <p className={`mb-3 text-lg font-black tracking-wide ${win ? 'text-yellow-500' : 'text-slate-300'}`}>ÉXITO</p>
-          <div className={win ? 'duo-glow rounded-full' : ''} ref={win ? currentRef : undefined}>
-            <Round colors={win ? GOLD : GREY} dim={!win} size={80} label="Éxito">🏆</Round>
+          <p className={`mb-3 text-lg font-black tracking-wide ${win ? 'text-yellow-400 text-2xl win-title' : 'text-slate-300'}`}>
+            {win ? '¡ÉXITO!' : 'ÉXITO'}
+          </p>
+          <div className="relative">
+            {win && <WinBurst />}
+            <div className={win ? 'duo-glow win-trophy rounded-full relative' : ''} ref={win ? currentRef : undefined}>
+              <Round colors={win ? GOLD : GREY} dim={!win} size={80} label="Éxito">🏆</Round>
+            </div>
           </div>
           {win && (
             <div className="absolute bottom-0" style={{ left: '100%', marginLeft: 10 }}>
@@ -278,6 +466,9 @@ export default function SuccessPath({
                 const ready  = done >= chestNeed[node.id] && !opened
                 return (
                   <Row key={node.id} id={node.id} x={x} edit={edit} z="z-0" height={ready && !edit ? ROW + 30 : ROW}>
+                    {!edit && scenery(pos, x)}
+                    {!edit && <Meadow pos={pos} x={x} side={freeSide(pos, x)} freeBusy={frameNear(pos)} />}
+                    {trailBelow(pos)}
                     <div className={`relative ${ready && !edit ? 'duo-wiggle' : ''}`}>
                       <Round colors={ready || edit ? GOLD : opened ? { bg: '#fef3c7', shadow: '#fde68a' } : GREY}
                         dim={!ready && !opened && !edit} rounded="rounded-2xl" label="Cofre"
@@ -292,7 +483,7 @@ export default function SuccessPath({
                       )}
                     </div>
                     {ready && !edit ? <Bubble title="¡ABRIR!" color="#d97706" /> : (
-                      <p className="absolute top-[74px] text-[10px] font-bold text-slate-400">{opened ? 'Recompensa' : 'Cofre'}</p>
+                      <p className="absolute top-[74px] px-1.5 py-0.5 rounded-md bg-white/80 text-[10px] font-bold text-slate-400">{opened ? 'Recompensa' : 'Cofre'}</p>
                     )}
                   </Row>
                 )
@@ -303,6 +494,10 @@ export default function SuccessPath({
               return (
                 <Row key={node.id} id={node.id} x={x} edit={edit} z={menuOpen ? 'z-40' : 'z-0'}
                   height={isCurrent && !edit ? ROW + 40 : ROW} marginTop={isCurrent && !edit ? 14 : 0}>
+                  {!edit && !isCurrent && !menuOpen && scenery(pos, x)}
+                  {!edit && !menuOpen && <Meadow pos={pos} x={x} side={freeSide(pos, x)} freeBusy={frameNear(pos) || isCurrent} />}
+                  {trailBelow(pos)}
+                  {node.done && !edit && !menuOpen && !hasFrame(pos) && <Bloom side={freeSide(pos, x)} night={night} seed={pos} />}
                   <StopNode item={node} colors={colorsOf(node.id)} isCurrent={isCurrent} x={x} mood={mood} edit={edit}
                     menuOpen={menuOpen} done={done} nodeRef={isCurrent ? currentRef : undefined}
                     onTap={() => edit ? setMenu(menuOpen ? null : node.id) : node.canCheck === false ? onOpenStop(node.id) : onToggle(node.id)}
@@ -318,7 +513,8 @@ export default function SuccessPath({
           </SortableContext>
         </DndContext>
 
-        <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mt-1">Inicio</p>
+        <p className={`text-[10px] font-black uppercase tracking-widest mt-1 text-slate-300`}>Inicio</p>
+      </div>
       </div>
     </div>
   )

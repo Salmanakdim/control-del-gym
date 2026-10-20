@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from './supabase'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -70,6 +70,14 @@ export const STOP_COLORS = {
   red:    { bg: '#ff4b4b', shadow: '#d33a3a' },
   teal:   { bg: '#00cd9c', shadow: '#00a881' },
   indigo: { bg: '#6366f1', shadow: '#4f46e5' },
+  yellow:  { bg: '#ffc800', shadow: '#e0a800' },
+  lime:    { bg: '#a3e635', shadow: '#84cc16' },
+  cyan:    { bg: '#22d3ee', shadow: '#06b6d4' },
+  navy:    { bg: '#1e40af', shadow: '#1e3a8a' },
+  rose:    { bg: '#f43f5e', shadow: '#e11d48' },
+  magenta: { bg: '#d946ef', shadow: '#a21caf' },
+  brown:   { bg: '#b45309', shadow: '#92400e' },
+  dark:    { bg: '#334155', shadow: '#1e293b' },
 }
 
 // Id único para paradas y cofres nuevos
@@ -89,6 +97,36 @@ export const PRAYERS = [
 export function todayKey() {
   const d = new Date()
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
+}
+
+// Fecha local AAAA-MM-DD. (toISOString usa UTC: en España el día cambiaba a la 01:00/02:00)
+export function localDate(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// Fecha de hoy que cambia sola a las 00:00, y también al volver a la app
+// si se quedó abierta (o dormida en el móvil) mientras pasaba la medianoche.
+export function useToday() {
+  const [today, setToday] = useState(localDate)
+  useEffect(() => {
+    let timer
+    const check = () => setToday(localDate())
+    const schedule = () => {
+      const now  = new Date()
+      const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1)
+      timer = setTimeout(() => { check(); schedule() }, next - now)
+    }
+    const onVisible = () => { if (document.visibilityState === 'visible') check() }
+    schedule()
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', check)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', check)
+    }
+  }, [])
+  return today
 }
 
 export function usePathConfig() {

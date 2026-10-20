@@ -34,6 +34,26 @@ p.duo-bounce { animation-name: duo-bounce-y; }
 .duo-pop { animation: duo-pop .45s cubic-bezier(.34,1.56,.64,1); }
 @keyframes duo-glow { 0%,100% { filter: drop-shadow(0 0 6px #facc15) } 50% { filter: drop-shadow(0 0 18px #facc15) } }
 .duo-glow { animation: duo-glow 1.6s ease-in-out infinite; }
+@keyframes duo-signal { 0% { transform: scale(1); opacity: .6 } 100% { transform: scale(1.6); opacity: 0 } }
+.duo-signal { animation: duo-signal 2s cubic-bezier(.2,.6,.4,1) infinite; }
+
+/* Celebración del trofeo */
+@keyframes win-trophy { 0%,100% { transform: translateY(0) scale(1) rotate(0) } 20% { transform: translateY(-14px) scale(1.12) rotate(-8deg) } 40% { transform: translateY(0) scale(.96) rotate(6deg) } 55% { transform: translateY(-6px) scale(1.06) rotate(-3deg) } 70% { transform: translateY(0) scale(1) rotate(0) } }
+.win-trophy { animation: win-trophy 1.6s cubic-bezier(.3,1.5,.6,1) infinite, duo-glow 1.6s ease-in-out infinite; }
+@keyframes win-rays { to { transform: rotate(360deg) } }
+.win-rays { animation: win-rays 9s linear infinite; }
+@keyframes win-confetti { 0% { transform: translateY(-20px) rotate(0); opacity: 1 } 85% { opacity: 1 } 100% { transform: translateY(290px) rotate(720deg); opacity: 0 } }
+.win-confetti { animation: win-confetti 3s linear infinite; }
+@keyframes win-spark { 0%,100% { transform: scale(0) rotate(0); opacity: 0 } 40% { transform: scale(1.3) rotate(25deg); opacity: 1 } 70% { transform: scale(.9) rotate(-10deg); opacity: .8 } }
+.win-spark { animation: win-spark 2s ease-in-out infinite; }
+@keyframes win-title { 0%,100% { transform: scale(1); text-shadow: 0 0 0 #facc15 } 50% { transform: scale(1.15); text-shadow: 0 0 16px #facc15 } }
+.win-title { display: inline-block; animation: win-title 1.2s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .duo-signal { animation: none; opacity: 0; }
+  .win-trophy, .win-rays, .win-spark, .win-title { animation: none; }
+  .win-confetti { animation: none; opacity: 0; }
+}
 @keyframes duo-wiggle { 0%,100% { transform: rotate(0) } 20% { transform: rotate(-7deg) } 40% { transform: rotate(7deg) } 60% { transform: rotate(-4deg) } 80% { transform: rotate(0) } }
 .duo-wiggle { animation: duo-wiggle 1.4s ease-in-out infinite; transform-origin: bottom center; }
 @keyframes chest-open { 0% { transform: scale(1) rotate(0) } 30% { transform: scale(1.1) rotate(-12deg) } 60% { transform: scale(1.2) rotate(12deg) } 100% { transform: scale(1.6); opacity: 0 } }

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { localDate } from '../lib/pathConfig'
 import { Plus, Flame, Check, X, Settings2, Pencil, ChevronLeft, Trash2, ChevronDown, GripVertical } from 'lucide-react'
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
@@ -51,7 +52,8 @@ function cLight(color) {
   return `rgba(${r},${g},${b},0.13)`
 }
 
-function toStr(d) { return d.toISOString().split('T')[0] }
+// Fecha local (toISOString usaría UTC y el día cambiaría a la 01:00/02:00)
+function toStr(d) { return localDate(d) }
 
 function getStreak(logSet, habitId) {
   const set = new Set([...logSet].filter(k => k.startsWith(habitId+'|')).map(k => k.split('|')[1]))

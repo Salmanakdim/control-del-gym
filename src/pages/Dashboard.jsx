@@ -3,12 +3,11 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { usePomodoro } from '../contexts/PomodoroContext'
 import SuccessPath from '../components/SuccessPath'
-import { StopSheet, InlinePage, ChestSheet, PathSettingsSheet } from '../components/PathSheets'
-import { usePathConfig, PATH_LINKS, readOpenedChests, writeOpenedChests, todayKey, PRAYERS, newId } from '../lib/pathConfig'
+import { StopSheet, InlinePage, ChestSheet, PathSettingsSheet, StatsSheet } from '../components/PathSheets'
+import { usePathConfig, PATH_LINKS, readOpenedChests, writeOpenedChests, todayKey, PRAYERS, newId, localDate, useToday } from '../lib/pathConfig'
 import { buildPath } from '../lib/pathModel'
 
 // ── Helpers ────────────────────────────────────────────────────────
-function todayStr() { return new Date().toISOString().split('T')[0] }
 
 function greeting() {
   const h = new Date().getHours()
@@ -68,6 +67,10 @@ export default function Dashboard({ logs, setPage }) {
   const [inlineLink,  setInlineLink]  = useState(null)   // sección abierta encima del camino
   const [chestSheet,  setChestSheet]  = useState(null)   // { k, alreadyOpen }
   const [showSettings, setShowSettings] = useState(false)
+  const [showStats,   setShowStats]   = useState(false)
+
+  // Día actual (local). A las 00:00 cambia y el camino vuelve a empezar de cero.
+  const today = useToday()
 
   // ── Foco del día (es una parada más del camino) ───────────────────
   const FOCUS_KEY = 'fwd_focus'
@@ -75,25 +78,47 @@ export default function Dashboard({ logs, setPage }) {
   const [savedFocus] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(FOCUS_KEY) || 'null')
-      return saved?.date === todayStr() ? saved : null
+      return saved?.date === localDate() ? saved : null
     } catch { return null }
   })
   const [focusText, setFocusText] = useState(savedFocus?.text || '')
   const [focusDone, setFocusDone] = useState(savedFocus?.done || false)
 
+  // Al pasar la medianoche con la app abierta: todo pendiente otra vez
+  const [shownDay, setShownDay] = useState(today)
+  if (shownDay !== today) {
+    setShownDay(today)
+    setTodayLogs(new Set())
+    setFocusText('')
+    setFocusDone(false)
+    setOpenedChests(readOpenedChests())
+    setStopSheet(null)
+    setInlineLink(null)
+    setChestSheet(null)
+  }
+
   function saveFocus(text) {
     setFocusText(text)
-    try { localStorage.setItem(FOCUS_KEY, JSON.stringify({ date: todayStr(), text, done: focusDone })) } catch { /* sin almacenamiento */ }
+    try { localStorage.setItem(FOCUS_KEY, JSON.stringify({ date: today, text, done: focusDone })) } catch { /* sin almacenamiento */ }
   }
 
   function toggleFocusDone() {
     const done = !focusDone
     setFocusDone(done)
-    try { localStorage.setItem(FOCUS_KEY, JSON.stringify({ date: todayStr(), text: focusText, done })) } catch { /* sin almacenamiento */ }
+    logPath('__focus', done)
+    try { localStorage.setItem(FOCUS_KEY, JSON.stringify({ date: today, text: focusText, done })) } catch { /* sin almacenamiento */ }
+  }
+
+  // Historial de paradas propias y foco (para las estadísticas). Si la tabla
+  // path_logs aún no existe, falla en silencio y el camino sigue funcionando.
+  function logPath(stopId, done) {
+    const q = done
+      ? supabase.from('path_logs').upsert({ user_id: user.id, stop_id: stopId, date: today }, { onConflict: 'user_id,stop_id,date' })
+      : supabase.from('path_logs').delete().eq('user_id', user.id).eq('stop_id', stopId).eq('date', today)
+    q.then(() => {}, () => {})
   }
 
   useEffect(() => {
-    const today = todayStr()
     Promise.all([
       supabase.from('habits').select('*').eq('user_id', user.id).order('created_at'),
       supabase.from('habit_logs').select('habit_id').eq('user_id', user.id).eq('date', today),
@@ -107,10 +132,9 @@ export default function Dashboard({ logs, setPage }) {
       setLastSleep(sl?.[0] || null)
       setLoading(false)
     })
-  }, [])
+  }, [today])
 
   async function toggleHabit(habitId) {
-    const today = todayStr()
     if (todayLogs.has(habitId)) {
       setTodayLogs(p => { const n = new Set(p); n.delete(habitId); return n })
       await supabase.from('habit_logs').delete().eq('habit_id', habitId).eq('date', today).eq('user_id', user.id)
@@ -225,7 +249,9 @@ export default function Dashboard({ logs, setPage }) {
   function toggleItem(id) {
     if (id === '__focus') return toggleFocusDone()
     if (custom.some(x => x.id === id)) {
-      const ids = customDone.includes(id) ? customDone.filter(x => x !== id) : [...customDone, id]
+      const done = !customDone.includes(id)
+      const ids  = done ? [...customDone, id] : customDone.filter(x => x !== id)
+      logPath(id, done)
       return saveConfig({ customDone: { date: todayKey(), ids } })
     }
     toggleHabit(id)
@@ -303,6 +329,7 @@ export default function Dashboard({ logs, setPage }) {
           onDo={id => doNow(id)}
           onOpenChest={(id, available) => available && setChestSheet({ k: id, alreadyOpen: openedChests.has(id) })}
           onOpenSettings={openSettings}
+          onOpenStats={() => setShowStats(true)}
           edit={!!draft}
           onStartEdit={() => setDraft({ order: sequence.map(n => n.id), chestList, colors: { ...(config.colors || {}) } })}
           onSaveEdit={() => { saveConfig(draft); setDraft(null) }}
@@ -343,6 +370,15 @@ export default function Dashboard({ logs, setPage }) {
           alreadyOpen={chestSheet.alreadyOpen}
           onOpened={() => markOpened(chestSheet.k)}
           onClose={() => setChestSheet(null)}/>
+      )}
+
+      {showStats && (
+        <StatsSheet
+          userId={user.id}
+          stops={items}
+          habits={habits}
+          today={today}
+          onClose={() => setShowStats(false)}/>
       )}
 
       {showSettings && sDraft && (

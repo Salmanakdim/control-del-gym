@@ -3,7 +3,9 @@ import { X, Play, Check, RotateCcw, Plus, Minus, ArrowLeft, Shuffle, Eye, EyeOff
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { PATH_LINKS, newId } from '../lib/pathConfig'
+import { PATH_LINKS, newId, localDate } from '../lib/pathConfig'
+import { supabase } from '../lib/supabase'
+import Flowy from './Flowy'
 import Metas from '../pages/Metas'
 import Afirmaciones from '../pages/Afirmaciones'
 import Respiracion from '../pages/Respiracion'
@@ -518,6 +520,151 @@ export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSa
           </div>
         )}
       </div>
+    </Sheet>
+  )
+}
+
+// ── Estadísticas: % de días que se hizo cada parada en la última semana / mes ──
+
+// Día en que empezó a existir la parada (para no contar días en que no estaba)
+function stopSince(stop, habits) {
+  if (stop.kind === 'habit') {
+    const h = habits.find(x => x.id === stop.id)
+    return h?.created_at ? localDate(new Date(h.created_at)) : null
+  }
+  if (stop.kind === 'custom') {
+    // newId: prefijo + Date.now() en base 36 + 4 letras al azar
+    const ms = parseInt(stop.id.replace(/^c_(pray_)?/, '').slice(0, -4), 36)
+    return ms > 1.5e12 && ms < 4e12 ? localDate(new Date(ms)) : null
+  }
+  return null
+}
+
+function pctColor(p) {
+  if (p >= 80) return '#58cc02'
+  if (p >= 50) return '#ff9600'
+  return '#ff4b4b'
+}
+
+export function StatsSheet({ userId, stops, habits, today, onClose }) {
+  const [days, setDays] = useState(7)
+  const [loaded, setLoaded] = useState(null)   // { key, habitLogs: Set, pathLogs: Set | null, pathFrom }
+  const key  = `${days}|${today}`
+  const data = loaded?.key === key ? loaded : null   // al cambiar de periodo se ve cargando
+
+  useEffect(() => {
+    const since = new Date(); since.setDate(since.getDate() - (days - 1))
+    const from = localDate(since)
+    Promise.all([
+      supabase.from('habit_logs').select('habit_id, date').eq('user_id', userId).gte('date', from),
+      supabase.from('path_logs').select('stop_id, date').eq('user_id', userId).gte('date', from),
+    ]).then(([hl, pl]) => {
+      setLoaded({
+        key: `${days}|${today}`,
+        habitLogs: new Set((hl.data || []).map(r => `${r.habit_id}|${r.date}`)),
+        pathLogs:  pl.error ? null : new Set((pl.data || []).map(r => `${r.stop_id}|${r.date}`)),
+        pathFrom:  pl.error ? null : (pl.data || []).reduce((m, r) => (!m || r.date < m ? r.date : m), null),
+      })
+    })
+  }, [days, userId, today])
+
+  // Días del periodo (de más antiguo a hoy)
+  const dates = Array.from({ length: days }, (_, i) => {
+    const d = new Date(); d.setDate(d.getDate() - (days - 1 - i)); return localDate(d)
+  })
+
+  const rows = !data ? [] : stops.map(st => {
+    const isHabit = st.kind === 'habit'
+    const logs = isHabit ? data.habitLogs : data.pathLogs
+    if (!logs) return { ...st, noData: true }
+    // Las paradas propias y el foco solo tienen historial desde que se empezó a guardar
+    const starts = [stopSince(st, habits), isHabit ? null : data.pathFrom].filter(Boolean)
+    const start  = starts.length ? starts.sort().at(-1) : dates[0]
+    let done = 0, total = 0
+    for (const d of dates) {
+      if (d < start) continue
+      const did = logs.has(`${st.id}|${d}`) || (d === today && st.done)
+      if (d === today && !did) continue   // hoy aún no ha terminado: solo cuenta si ya está hecho
+      total++
+      if (did) done++
+    }
+    if (!total) return { ...st, noData: true }
+    return { ...st, done, total, pct: Math.round(done / total * 100) }
+  })
+
+  const ranked = rows.filter(r => !r.noData).sort((a, b) => a.pct - b.pct || a.done - b.done)
+  const empty  = rows.filter(r => r.noData)
+  const worst  = ranked[0]
+  const avg    = ranked.length ? Math.round(ranked.reduce((s, r) => s + r.pct, 0) / ranked.length) : 0
+
+  return (
+    <Sheet onClose={onClose}>
+      <h2 className="text-xl font-black text-slate-800">Tu progreso</h2>
+      <div className="flex gap-2 mt-3 p-1 bg-slate-100 rounded-2xl">
+        {[[7, 'Semana'], [30, 'Mes']].map(([n, l]) => (
+          <button key={n} onClick={() => setDays(n)}
+            className={`flex-1 py-2 rounded-xl text-sm font-black transition-colors ${days === n ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>
+            {l} <span className="font-bold text-xs opacity-60">({n} días)</span>
+          </button>
+        ))}
+      </div>
+
+      {!data ? (
+        <div className="flex justify-center py-12">
+          <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : (
+        <>
+          {worst && (
+            <div className="mt-4 rounded-2xl border-2 p-4 flex items-center gap-3"
+              style={{ borderColor: worst.pct >= 80 ? '#58cc02' : '#ff9600', background: worst.pct >= 80 ? '#f0fdf4' : '#fff7ed' }}>
+              <Flowy mood={worst.pct >= 80 ? 'win' : 'push'} size={52} />
+              <div className="min-w-0">
+                {worst.pct >= 80 ? (
+                  <>
+                    <p className="text-sm font-black text-slate-800">¡Vas genial en todo!</p>
+                    <p className="text-xs font-bold text-slate-500 mt-0.5">Todas tus paradas están por encima del 80 %. Media: {avg} %.</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[11px] font-black text-orange-500 uppercase tracking-wide">Lo que más tienes que mejorar</p>
+                    <p className="text-base font-black text-slate-800 truncate">{worst.icon} {worst.label}</p>
+                    <p className="text-xs font-bold text-slate-500 mt-0.5">
+                      Solo {worst.done} de {worst.total} días ({worst.pct} %). Media de todo: {avg} %.
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4 space-y-3">
+            {ranked.map(r => (
+              <div key={r.id}>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-bold text-slate-700 truncate">{r.icon} {r.label}</p>
+                  <p className="text-sm font-black tabular-nums flex-shrink-0" style={{ color: pctColor(r.pct) }}>
+                    {r.pct} % <span className="text-[11px] font-bold text-slate-400">{r.done}/{r.total}</span>
+                  </p>
+                </div>
+                <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden mt-1">
+                  <div className="h-full rounded-full transition-all" style={{ width: `${r.pct}%`, background: pctColor(r.pct) }} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {empty.length > 0 && (
+            <p className="text-xs text-slate-400 mt-4">
+              Aún sin historial: {empty.map(r => `${r.icon} ${r.label}`).join(', ')}.
+              {!data.pathLogs && ' (Falta crear la tabla path_logs en Supabase.)'}
+            </p>
+          )}
+          <p className="text-[11px] text-slate-400 mt-3">
+            Hoy solo cuenta si ya lo has hecho, porque el día aún no ha terminado.
+          </p>
+        </>
+      )}
     </Sheet>
   )
 }
