@@ -104,36 +104,75 @@ export function localDate(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-// Fecha de hoy que cambia sola a las 00:00, y también al volver a la app
-// si se quedó abierta (o dormida en el móvil) mientras pasaba la medianoche.
-export function useToday() {
-  const [today, setToday] = useState(localDate)
+// Hora a la que empieza "mi día" (0-6). Si te acuestas a la 01:00, con 04:00 lo
+// que marques de madrugada sigue contando para el día anterior. Se guarda también
+// en localStorage para poder leerla sin hooks desde cualquier página.
+const DAY_START_KEY = 'fwd_day_start'
+export function readDayStart() {
+  try { const v = Number(localStorage.getItem(DAY_START_KEY)); return v >= 0 && v <= 6 ? v : 0 } catch { return 0 }
+}
+function writeDayStart(h) {
+  try { localStorage.setItem(DAY_START_KEY, String(h)) } catch { /* sin almacenamiento */ }
+}
+
+// "Hoy" de la app: la fecha local restando la hora de inicio del día
+export function appToday(dayStart = readDayStart(), d = new Date()) {
+  return localDate(new Date(d.getTime() - dayStart * 3600000))
+}
+
+// Fecha de hoy que cambia sola a la hora de inicio del día (00:00 por defecto), y
+// también al volver a la app si se quedó abierta (o dormida en el móvil) mientras pasaba.
+export function useToday(dayStart = readDayStart()) {
+  const [today, setToday] = useState(() => appToday(dayStart))
   useEffect(() => {
     let timer
-    const check = () => setToday(localDate())
+    const check = () => setToday(appToday(dayStart))
     const schedule = () => {
       const now  = new Date()
-      const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1)
+      let next = new Date(now.getFullYear(), now.getMonth(), now.getDate(), dayStart, 0, 1)
+      if (next <= now) next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, dayStart, 0, 1)
       timer = setTimeout(() => { check(); schedule() }, next - now)
     }
     const onVisible = () => { if (document.visibilityState === 'visible') check() }
+    const first = setTimeout(check, 0)   // si cambia la hora de inicio, recalcular ya
     schedule()
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('focus', check)
     return () => {
+      clearTimeout(first)
       clearTimeout(timer)
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('focus', check)
     }
-  }, [])
+  }, [dayStart])
   return today
+}
+
+// Estado de una parada en un día que no sea "hecho": no la hice (con motivo) o la salto.
+// config.dayMarks = { 'AAAA-MM-DD': { [paradaId]: { s: 'missed' | 'skipped', why? } } }
+// Se guardan los últimos 21 días (para la Revisión diaria y las estadísticas).
+export function marksFor(config, date) {
+  return config.dayMarks?.[date] || {}
+}
+export function withMark(config, date, id, mark) {
+  const day = { ...marksFor(config, date) }
+  if (mark) day[id] = mark
+  else delete day[id]
+  const all = { ...(config.dayMarks || {}), [date]: day }
+  const keep = Object.keys(all).sort().slice(-21)
+  return Object.fromEntries(keep.map(k => [k, all[k]]))
 }
 
 export function usePathConfig() {
   const { user } = useAuth()
   const [config, setConfig] = useState(() => ({ ...DEFAULTS, ...(user?.user_metadata?.flow_path || {}) }))
 
+  // La hora de inicio del día se copia a localStorage para appToday()
+  const metaDayStart = user?.user_metadata?.flow_path?.dayStart
+  useEffect(() => { if (metaDayStart != null) writeDayStart(metaDayStart) }, [metaDayStart])
+
   function save(changes) {
+    if (changes.dayStart != null) writeDayStart(changes.dayStart)
     setConfig(prev => {
       const next = { ...prev, ...changes }
       supabase.auth.updateUser({ data: { flow_path: next } })
@@ -146,8 +185,7 @@ export function usePathConfig() {
 
 // Cofres abiertos hoy (solo en este dispositivo, se reinicia cada día)
 function chestKey() {
-  const d = new Date()
-  return `fwd_chests_${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
+  return `fwd_chests_${appToday()}`
 }
 export function readOpenedChests() {
   try { return new Set(JSON.parse(localStorage.getItem(chestKey()) || '[]')) } catch { return new Set() }

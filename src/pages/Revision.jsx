@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { appToday } from '../lib/pathConfig'
 import MicButton from '../components/MicButton'
 import { Flame, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Plus, X, Lightbulb } from 'lucide-react'
 
@@ -8,7 +9,7 @@ import { Flame, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Plus, X, Ligh
 function dateStr(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
-function todayStr() { return dateStr(new Date()) }
+function todayStr() { return appToday() }   // respeta la hora de inicio del día
 function shiftStr(iso, days) {
   const d = new Date(iso + 'T00:00:00')
   d.setDate(d.getDate() + days)
@@ -171,6 +172,51 @@ function Section({ cfg, items, onAdd, onRemove }) {
   )
 }
 
+function SuggestionGroup({ title, color, items, k, onAdd }) {
+  if (!items.length) return null
+  return (
+    <div className="mt-3">
+      <div className="flex items-center justify-between mb-1.5">
+        <p className={`text-xs font-black ${color}`}>{title}</p>
+        {items.length > 1 && (
+          <button onClick={() => onAdd(k, items)} className="text-[11px] font-black text-blue-600">Añadir todo</button>
+        )}
+      </div>
+      <div className="space-y-1.5">
+        {items.map(t => (
+          <div key={t} className="flex items-center gap-2 bg-slate-50 rounded-xl pl-3 pr-1.5 py-1.5">
+            <p className="flex-1 min-w-0 text-sm font-medium text-slate-700">{t}</p>
+            <button onClick={() => onAdd(k, [t])} aria-label="Añadir"
+              className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-black text-slate-600 active:bg-slate-100">
+              <Plus size={13}/> Añadir
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Sugerencias sacadas del Camino al éxito de ese día: lo hecho va a "bien" y lo
+// marcado como ❌ (con su motivo) a "mal". Solo se añade al pulsar.
+function PathSuggestions({ good, bad, skipped, current, onAdd }) {
+  const has = (key, t) => (current[key] || []).some(it => itemText(it) === t)
+  const goodLeft = good.filter(t => !has('good', t))
+  const badLeft  = bad.filter(t => !has('bad', t))
+  if (!goodLeft.length && !badLeft.length && !skipped.length) return null
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm px-4 py-4">
+      <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">🛤️ Del Camino al éxito</p>
+      <SuggestionGroup onAdd={onAdd} title="✅ Lo hiciste → Lo que hice bien" color="text-green-700" items={goodLeft} k="good" />
+      <SuggestionGroup onAdd={onAdd} title="❌ No lo hiciste → Lo que hice mal" color="text-red-600" items={badLeft} k="bad" />
+      {skipped.length > 0 && (
+        <p className="mt-3 text-xs text-slate-400 font-semibold">⏭️ Saltaste: {skipped.join(', ')}</p>
+      )}
+    </div>
+  )
+}
+
 export default function Revision() {
   const { user } = useAuth()
   const [reviews,     setReviews]     = useState([])
@@ -184,6 +230,23 @@ export default function Revision() {
     setView({ y: Number(d.slice(0, 4)), m: Number(d.slice(5, 7)) - 1 })
   }
 
+  // Camino del día elegido: hábitos hechos (habit_logs), paradas propias/foco hechos
+  // (path_logs, si existe la tabla) y ❌/⏭️ guardados en la config del camino.
+  const [pathDay, setPathDay] = useState({ habits: [], logs: new Set(), extra: new Set() })
+  useEffect(() => {
+    Promise.all([
+      supabase.from('habits').select('id,name,icon').eq('user_id', user.id),
+      supabase.from('habit_logs').select('habit_id').eq('user_id', user.id).eq('date', date),
+      supabase.from('path_logs').select('stop_id').eq('user_id', user.id).eq('date', date).then(r => r, () => ({ data: [] })),
+    ]).then(([{ data: hab }, { data: hl }, { data: pl }]) => {
+      setPathDay({
+        habits: hab || [],
+        logs: new Set((hl || []).map(l => l.habit_id)),
+        extra: new Set((pl || []).map(l => l.stop_id)),
+      })
+    })
+  }, [date])
+
   useEffect(() => {
     supabase.from('daily_reviews').select('*').eq('user_id', user.id)
       .order('date', { ascending: false })
@@ -195,6 +258,30 @@ export default function Revision() {
   const streak    = calcStreak(reviews)
   const history   = reviews.filter(r => r.date !== date && hasContent(r))
   const isToday   = date === todayStr()
+
+  // Sugerencias del camino para este día
+  const pathCfg   = user.user_metadata?.flow_path || {}
+  const hiddenIds = new Set(pathCfg.hidden || [])
+  const stopInfo  = id => {
+    if (id === '__focus') return '🎯 Foco del día'
+    const h = pathDay.habits.find(x => x.id === id)
+    if (h) return `${h.icon || '⭐'} ${h.name}`
+    const c = (pathCfg.custom || []).find(x => x.id === id)
+    return c ? `${c.icon || '⭐'} ${c.label}` : null
+  }
+  const dayMarks   = pathCfg.dayMarks?.[date] || {}
+  const sugGood    = [
+    ...pathDay.habits.filter(h => pathDay.logs.has(h.id) && !hiddenIds.has(h.id)).map(h => h.id),
+    ...[...pathDay.extra].filter(id => !hiddenIds.has(id)),
+  ].map(stopInfo).filter(Boolean)
+  const sugBad     = Object.entries(dayMarks).filter(([, m]) => m.s === 'missed')
+    .map(([id, m]) => { const t = stopInfo(id); return t && (m.why ? `${t} — ${m.why}` : t) }).filter(Boolean)
+  const sugSkipped = Object.entries(dayMarks).filter(([, m]) => m.s === 'skipped').map(([id]) => stopInfo(id)).filter(Boolean)
+
+  function addMany(key, texts) {
+    const at = new Date().toISOString()
+    save({ [key]: [...(current[key] || []), ...texts.map(text => ({ text, at }))] })
+  }
 
   async function save(changes) {
     const next = { ...EMPTY, ...current, ...changes, date }
@@ -269,6 +356,9 @@ export default function Revision() {
           ))}
         </div>
       </div>
+
+      {/* Del Camino al éxito */}
+      <PathSuggestions good={sugGood} bad={sugBad} skipped={sugSkipped} current={current} onAdd={addMany} />
 
       {/* Sections */}
       {SECTIONS.map(cfg => (

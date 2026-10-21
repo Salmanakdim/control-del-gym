@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { usePomodoro } from '../contexts/PomodoroContext'
 import SuccessPath from '../components/SuccessPath'
 import { StopSheet, InlinePage, ChestSheet, PathSettingsSheet, StatsSheet } from '../components/PathSheets'
-import { usePathConfig, PATH_LINKS, readOpenedChests, writeOpenedChests, todayKey, PRAYERS, newId, localDate, useToday } from '../lib/pathConfig'
+import { usePathConfig, PATH_LINKS, readOpenedChests, writeOpenedChests, PRAYERS, newId, useToday, appToday, withMark } from '../lib/pathConfig'
 import { buildPath } from '../lib/pathModel'
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -69,8 +69,9 @@ export default function Dashboard({ logs, setPage }) {
   const [showSettings, setShowSettings] = useState(false)
   const [showStats,   setShowStats]   = useState(false)
 
-  // Día actual (local). A las 00:00 cambia y el camino vuelve a empezar de cero.
-  const today = useToday()
+  // Día actual (local). A la hora de inicio del día (00:00 por defecto) cambia y el
+  // camino vuelve a empezar de cero.
+  const today = useToday(config.dayStart ?? 0)
 
   // ── Foco del día (es una parada más del camino) ───────────────────
   const FOCUS_KEY = 'fwd_focus'
@@ -78,7 +79,7 @@ export default function Dashboard({ logs, setPage }) {
   const [savedFocus] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(FOCUS_KEY) || 'null')
-      return saved?.date === localDate() ? saved : null
+      return saved?.date === appToday(config.dayStart ?? 0) ? saved : null
     } catch { return null }
   })
   const [focusText, setFocusText] = useState(savedFocus?.text || '')
@@ -148,7 +149,7 @@ export default function Dashboard({ logs, setPage }) {
   // Modo editar del camino: orden, colores y cofres van a un borrador hasta pulsar Guardar
   const [draft, setDraft] = useState(null)
   const cfg  = draft ? { ...config, ...draft } : config
-  const path = buildPath({ config: cfg, habits, todayLogs, focusText, focusDone })
+  const path = buildPath({ config: cfg, habits, todayLogs, focusText, focusDone, today })
   const { custom, customDone, linkOf, sequence, chestList, legacyChests, colorsOf } = path
   const items = path.stops
 
@@ -170,7 +171,7 @@ export default function Dashboard({ logs, setPage }) {
 
   // ── Personalizar: todo va a un borrador (config + hábitos) hasta "Guardar cambios" ──
   const [sDraft, setSDraft] = useState(null)   // { config, habits, ops: [cambios de hábitos], dirty }
-  const sp = sDraft && buildPath({ config: sDraft.config, habits: sDraft.habits, todayLogs, focusText, focusDone })
+  const sp = sDraft && buildPath({ config: sDraft.config, habits: sDraft.habits, todayLogs, focusText, focusDone, today })
 
   function openSettings() {
     setSDraft({ config: { ...config, chestList, order: sequence.map(n => n.id) }, habits: [...habits], ops: [], dirty: false })
@@ -246,15 +247,46 @@ export default function Dashboard({ logs, setPage }) {
 
   const openItem = items.find(i => i.id === stopSheet)
 
+  // ❌ No lo hice (con motivo opcional) / ⏭️ Saltar hoy / null = volver a pendiente
+  function setMark(id, mark) {
+    saveConfig({ dayMarks: withMark(config, today, id, mark) })
+  }
+
   function toggleItem(id) {
-    if (id === '__focus') return toggleFocusDone()
+    const node = items.find(i => i.id === id)
+    const clearMark = node && (node.missed || node.skipped) ? { dayMarks: withMark(config, today, id, null) } : {}
+    if (id === '__focus') {
+      if (clearMark.dayMarks) saveConfig(clearMark)
+      return toggleFocusDone()
+    }
     if (custom.some(x => x.id === id)) {
       const done = !customDone.includes(id)
       const ids  = done ? [...customDone, id] : customDone.filter(x => x !== id)
       logPath(id, done)
-      return saveConfig({ customDone: { date: todayKey(), ids } })
+      return saveConfig({ customDone: { date: today, ids }, ...clearMark })
     }
+    if (clearMark.dayMarks) saveConfig(clearMark)
     toggleHabit(id)
+  }
+
+  // Toque en una parada: si estaba en ❌ o ⏭️, vuelve a pendiente; si no, hecho/pendiente
+  function tapStop(id) {
+    const node = items.find(i => i.id === id)
+    if (node && (node.missed || node.skipped)) return setMark(id, null)
+    toggleItem(id)
+  }
+
+  // Marcar ❌ o ⏭️ una parada hecha: primero se deshace el "hecho"
+  function markStop(id, mark) {
+    const node = items.find(i => i.id === id)
+    if (node?.done) {
+      if (id === '__focus') toggleFocusDone()
+      else if (custom.some(x => x.id === id)) {
+        logPath(id, false)
+        return saveConfig({ customDone: { date: today, ids: customDone.filter(x => x !== id) }, dayMarks: withMark(config, today, id, mark) })
+      } else toggleHabit(id)
+    }
+    setMark(id, mark)
   }
 
   function doNow(id = openItem.id) {
@@ -324,7 +356,10 @@ export default function Dashboard({ logs, setPage }) {
           sequence={sequence}
           colorsOf={colorsOf}
           openedChests={openedChests}
-          onToggle={id => toggleItem(id)}
+          onToggle={tapStop}
+          onMiss={(id, why) => markStop(id, { s: 'missed', ...(why ? { why } : {}) })}
+          onSkip={id => markStop(id, { s: 'skipped' })}
+          onClearMark={id => setMark(id, null)}
           onOpenStop={id => setStopSheet(id)}
           onDo={id => doNow(id)}
           onOpenChest={(id, available) => available && setChestSheet({ k: id, alreadyOpen: openedChests.has(id) })}

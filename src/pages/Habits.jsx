@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { localDate } from '../lib/pathConfig'
+import { localDate, appToday } from '../lib/pathConfig'
 import { Plus, Flame, Check, X, Settings2, Pencil, ChevronLeft, Trash2, ChevronDown, GripVertical } from 'lucide-react'
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
@@ -198,7 +198,7 @@ function SortableHabitItem({ habit }) {
 
 export default function Habits() {
   const { user } = useAuth()
-  const todayStr = toStr(new Date())
+  const todayStr = appToday()   // respeta la hora de inicio del día (Personalizar del camino)
 
   const [habits, setHabits]     = useState([])
   const [logSet, setLogSet]     = useState(new Set())

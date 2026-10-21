@@ -381,6 +381,20 @@ export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSa
       <h2 className="text-xl font-black text-slate-800">Personalizar camino</h2>
       <p className="text-xs text-slate-500 mt-1">Nada cambia en el camino hasta que pulses Guardar cambios.</p>
 
+      {/* Hora de inicio del día */}
+      <p className="mt-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">🌙 Mi día empieza a las</p>
+      <p className="text-xs text-slate-500 mt-1 mb-3">
+        Si te acuestas tarde, lo que marques de madrugada sigue contando para el día anterior.
+      </p>
+      <div className="grid grid-cols-7 gap-1.5">
+        {[0, 1, 2, 3, 4, 5, 6].map(h => (
+          <button key={h} onClick={() => save({ dayStart: h })}
+            className={`py-2 rounded-xl text-xs font-black tabular-nums ${(config.dayStart ?? 0) === h ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+            {String(h).padStart(2, '0')}:00
+          </button>
+        ))}
+      </div>
+
       {/* Paradas */}
       <p className="mt-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">🛤️ Paradas</p>
       <p className="text-xs text-slate-500 mt-1 mb-3">Oculta las que no quieras en el camino (las tuyas se añaden más abajo)</p>

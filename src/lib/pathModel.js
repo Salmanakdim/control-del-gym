@@ -1,11 +1,12 @@
-import { guessLink, todayKey, STOP_COLORS } from './pathConfig'
+import { guessLink, STOP_COLORS, marksFor } from './pathConfig'
 
 // Construye el camino (paradas + cofres, de abajo a arriba) a partir de una configuración.
 // Es una función pura: se usa para el camino guardado y para el borrador de Personalizar.
-export function buildPath({ config, habits, todayLogs, focusText, focusDone }) {
+export function buildPath({ config, habits, todayLogs, focusText, focusDone, today }) {
   const hidden     = config.hidden || []
   const custom     = config.custom || []
-  const customDone = config.customDone?.date === todayKey() ? config.customDone.ids : []
+  const customDone = config.customDone?.date === today ? config.customDone.ids : []
+  const marks      = marksFor(config, today)   // ❌ no lo hice / ⏭️ saltar hoy
 
   // Dónde se hace cada parada (hábito: elegido o adivinado por el nombre; propia: la suya)
   function linkOf(id) {
@@ -24,6 +25,10 @@ export function buildPath({ config, habits, todayLogs, focusText, focusDone }) {
   const stops = allStops.filter(s => !hidden.includes(s.id)).map(s => ({
     ...s,
     type: 'stop',
+    // Si está hecha, manda "hecho"; si no, lo que se haya marcado hoy
+    missed:  !s.done && marks[s.id]?.s === 'missed',
+    skipped: !s.done && marks[s.id]?.s === 'skipped',
+    why:     !s.done ? marks[s.id]?.why || '' : '',
     canDo: s.kind !== 'focus' && linkOf(s.id) !== 'none',   // se hace dentro de la app → ▶
     canCheck: s.kind !== 'focus' || !!focusText,           // el foco necesita estar escrito
   }))
@@ -54,5 +59,5 @@ export function buildPath({ config, habits, todayLogs, focusText, focusDone }) {
 
   const colorsOf = id => STOP_COLORS[config.colors?.[id]] || STOP_COLORS.green
 
-  return { hidden, custom, customDone, linkOf, allStops, stops: sortedStops, chestList, legacyChests, sequence, colorsOf }
+  return { hidden, custom, customDone, marks, linkOf, allStops, stops: sortedStops, chestList, legacyChests, sequence, colorsOf }
 }

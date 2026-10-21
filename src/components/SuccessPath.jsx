@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Settings, Check, Play, Pencil, GripVertical, X, Plus, RotateCcw, SlidersHorizontal, BarChart3 } from 'lucide-react'
+import { Settings, Check, Play, Pencil, GripVertical, X, Plus, RotateCcw, SlidersHorizontal, BarChart3, XCircle, SkipForward } from 'lucide-react'
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -70,9 +70,9 @@ const atEdge = (side, x, margin) => side === 'left'
 function VisionFrame({ src, x, side, tilt, onOpen }) {
   return (
     <button onClick={onOpen} aria-label="Ver imagen del vision board"
-      className="absolute -top-6 p-1.5 pb-4 bg-white rounded-md shadow-lg active:scale-95 transition-transform"
-      style={{ ...atEdge(side, x, 12), transform: `rotate(${tilt}deg)` }}>
-      <img src={src} alt="" draggable={false} decoding="async" className="block w-[104px] h-[128px] object-cover rounded-sm select-none" />
+      className="absolute -top-5 p-1.5 pb-3.5 bg-white rounded-md shadow-lg active:scale-95 transition-transform"
+      style={{ ...atEdge(side, x, 4), transform: `rotate(${tilt}deg)` }}>
+      <img src={src} alt="" draggable={false} decoding="async" className="block w-[92px] h-[100px] object-cover rounded-sm select-none" />
     </button>
   )
 }
@@ -94,23 +94,38 @@ function Trail({ dx, dy, walked }) {
 }
 
 // Al completar una parada brota algo en su hueco (estrellas de noche)
-// Florecitas salpicadas por todo el camino: en el lado de la curva, una o dos
-// según el sitio que quede hasta el borde; en el lado libre, dos si no hay un
-// cuadro cerca ni está Flowy. Posiciones fijas según la fila, para que no
-// "salten" al volver a pintar.
+// Prado que crece con el día: solo hay hierba y flores en el tramo ya andado
+// (hasta la parada siguiente) y cada parada hecha añade más. Van a los dos
+// lados, alternando, como si acompañaran el camino. Posiciones fijas según
+// fila y número, así lo que ya ha brotado no "salta" y lo nuevo sale con un pop.
+// Se pinta antes que los cuadros del vision board, que quedan por encima.
 const SMALL_FLOWERS = ['🌸', '🌼', '🌷', '🌺', '💮', '🌻', '🌼']
-function Meadow({ pos, x, side, freeBusy }) {
-  const other = side === 'left' ? 'right' : 'left'
-  const items = [{ s: other, gap: 46 + (pos * 11) % 22, top: 30 + (pos * 7) % 30 }]
-  if (Math.abs(x) <= 44) items.push({ s: other, gap: 84 + (pos * 7) % 24, top: 2 + (pos * 13) % 22 })
-  if (!freeBusy) {
-    items.push({ s: side, gap: 74 + (pos * 13) % 30, top: 4 + (pos * 5) % 20 })
-    items.push({ s: side, gap: 110 + (pos * 17) % 26, top: 44 + (pos * 3) % 24 })
+const GRASS = ['🌿', '🌱', '☘️', '🍀', '🌾']
+const MEADOW_MAX = 12
+function Meadow({ pos, x, flowySide, growth }) {
+  if (growth <= 0) return null
+  // px desde el centro de la parada hasta el borde de cada lado (la fila está desplazada x)
+  const room  = { left: 170 + x, right: 170 - x }
+  const first = pos % 2 ? 'right' : 'left'
+  const items = []
+  for (let k = 0; k < Math.min(growth, MEADOW_MAX); k++) {
+    const s    = k % 2 ? (first === 'left' ? 'right' : 'left') : first
+    const r    = (pos * 37 + k * 53) % 97                       // "azar" fijo
+    const span = Math.max(30, Math.min(110, room[s] - 64))
+    const gap  = 46 + (r * 7 + (k >> 1) * 23) % span
+    // Al lado de Flowy, solo por debajo de él
+    const top  = s === flowySide ? 62 + (r % 18) : 4 + (r * 3 + k * 29) % 74
+    const leaf = k % 3 === 2                                     // una de cada tres es hierba
+    items.push({
+      s, gap, top, k,
+      e: leaf ? GRASS[(pos + k) % GRASS.length] : SMALL_FLOWERS[(pos * 3 + k) % SMALL_FLOWERS.length],
+      size: leaf ? 14 : 13 + (r % 5),
+    })
   }
-  return items.map((f, k) => (
-    <span key={k} aria-hidden className="absolute text-[15px] leading-none pointer-events-none select-none"
-      style={{ top: f.top, ...(f.s === 'left' ? { right: `calc(50% + ${f.gap}px)` } : { left: `calc(50% + ${f.gap}px)` }) }}>
-      {SMALL_FLOWERS[(pos * 3 + k) % SMALL_FLOWERS.length]}
+  return items.map(f => (
+    <span key={f.k} aria-hidden className="absolute leading-none pointer-events-none select-none duo-pop"
+      style={{ top: f.top, fontSize: f.size, ...(f.s === 'left' ? { right: `calc(50% + ${f.gap}px)` } : { left: `calc(50% + ${f.gap}px)` }) }}>
+      {f.e}
     </span>
   ))
 }
@@ -210,8 +225,9 @@ function Row({ id, x, height, marginTop, edit, z, children }) {
   )
 }
 
-function StopNode({ item, colors, isCurrent, x, mood, edit, menuOpen, done, nodeRef, onTap, onLong, onCloseMenu, onSetDone, onDo, onMore, onColor }) {
+function StopNode({ item, colors, isCurrent, x, mood, edit, menuOpen, done, nodeRef, onTap, onLong, onCloseMenu, onSetDone, onDo, onMore, onColor, onMiss, onSkip, onClearMark }) {
   const press  = useLongPress(onLong, onTap)
+  const [why, setWhy] = useState(null)   // texto del motivo mientras se marca ❌ (null = no se está preguntando)
   const inner  = x > 0 ? 'left' : 'right'
   const filled = item.done || isCurrent
   return (
@@ -225,13 +241,19 @@ function StopNode({ item, colors, isCurrent, x, mood, edit, menuOpen, done, node
             <div className="absolute -inset-2.5 rounded-full border-4 duo-signal pointer-events-none" style={{ borderColor: colors.bg, animationDelay: '1s' }} />
           </>
         )}
-        <Round key={`${item.id}-${item.done}`} colors={filled || edit ? colors : GREY} dim={!filled && !edit}
+        <Round key={`${item.id}-${item.done}`} colors={item.missed && !edit ? { bg: '#ff4b4b', shadow: '#d33a3a' } : filled || edit ? colors : GREY} dim={(!filled && !item.missed && !edit) || (item.skipped && !edit)}
           pop={item.done} label={item.label} {...(edit ? { onClick: onTap } : press)}>
           {item.icon}
         </Round>
         {item.done && (
           <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-white text-[11px] font-black flex items-center justify-center shadow"
             style={{ color: colors.bg }}>✓</span>
+        )}
+        {item.missed && !edit && (
+          <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-white text-[11px] font-black flex items-center justify-center shadow text-[#ff4b4b]">✕</span>
+        )}
+        {item.skipped && !edit && (
+          <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-white text-[10px] flex items-center justify-center shadow">⏭️</span>
         )}
         {isCurrent && !edit && (
           <div className="absolute -top-2" style={inner === 'left' ? { right: '100%', marginRight: 16 } : { left: '100%', marginLeft: 16 }}>
@@ -244,6 +266,7 @@ function StopNode({ item, colors, isCurrent, x, mood, edit, menuOpen, done, node
       {menuOpen ? (
         <div className="absolute top-[82px] left-1/2 -translate-x-1/2 z-50 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 w-52 sheet-up">
           <p className="text-xs font-black text-slate-700 px-2 pt-1 pb-2 truncate">{item.icon} {item.label}</p>
+          {item.missed && item.why && <p className="text-[11px] font-semibold text-red-500 px-2 -mt-1 pb-2">❌ {item.why}</p>}
           {edit ? (
             <div className="grid grid-cols-4 gap-2 p-1">
               {Object.entries(STOP_COLORS).map(([k, c]) => (
@@ -253,7 +276,25 @@ function StopNode({ item, colors, isCurrent, x, mood, edit, menuOpen, done, node
               ))}
             </div>
           ) : (
+            why !== null ? (
+              // ❌ No lo hice: motivo opcional
+              <div className="p-1 space-y-2">
+                <p className="text-xs font-bold text-slate-500">¿Por qué? (opcional)</p>
+                <input autoFocus value={why} onChange={e => setWhy(e.target.value)} placeholder="Ej: me dormí a la 01:00"
+                  onKeyDown={e => { if (e.key === 'Enter') { onMiss(why.trim()); setWhy(null) } }}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-300" />
+                <div className="flex gap-2">
+                  <button onClick={() => setWhy(null)} className="flex-1 py-2 rounded-xl bg-slate-100 text-xs font-black text-slate-500">Atrás</button>
+                  <button onClick={() => { onMiss(why.trim()); setWhy(null) }} className="flex-1 py-2 rounded-xl bg-[#ff4b4b] text-xs font-black text-white">Guardar</button>
+                </div>
+              </div>
+            ) : (
             <div className="space-y-1">
+              {item.missed || item.skipped ? (
+                <button onClick={onClearMark} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-700 active:bg-slate-50">
+                  <RotateCcw size={15} className="text-slate-400" /> Volver a pendiente
+                </button>
+              ) : null}
               {item.canCheck !== false ? (
                 <button onClick={onSetDone} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-700 active:bg-slate-50">
                   {item.done
@@ -265,7 +306,17 @@ function StopNode({ item, colors, isCurrent, x, mood, edit, menuOpen, done, node
                   <Pencil size={15} className="text-amber-500" /> Escribir
                 </button>
               )}
-              {item.canDo && (
+              {!item.missed && (
+                <button onClick={() => setWhy('')} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-700 active:bg-slate-50">
+                  <XCircle size={16} className="text-[#ff4b4b]" /> No lo hice
+                </button>
+              )}
+              {!item.skipped && (
+                <button onClick={onSkip} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-700 active:bg-slate-50">
+                  <SkipForward size={15} className="text-slate-400" /> Saltar hoy
+                </button>
+              )}
+              {item.canDo && !item.done && (
                 <button onClick={onDo} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-700 active:bg-slate-50">
                   <Play size={14} fill="#1cb0f6" className="text-[#1cb0f6]" /> Hacer en la app
                 </button>
@@ -274,13 +325,14 @@ function StopNode({ item, colors, isCurrent, x, mood, edit, menuOpen, done, node
                 <SlidersHorizontal size={15} /> Más opciones
               </button>
             </div>
+            )
           )}
           <button onClick={onCloseMenu} className="w-full mt-1 py-2 text-xs font-bold text-slate-400">Cerrar</button>
         </div>
       ) : isCurrent && !edit ? (
         <Bubble title={done === 0 ? 'EMPEZAR' : 'SIGUIENTE'} subtitle={item.label} />
       ) : (
-        <p className="absolute top-[74px] px-1.5 py-0.5 rounded-md bg-white/80 text-[10px] font-bold text-slate-500 max-w-[90px] truncate text-center">{item.label}</p>
+        <p className={`absolute top-[74px] px-1.5 py-0.5 rounded-md bg-white/80 text-[10px] font-bold max-w-[90px] truncate text-center ${item.missed ? 'text-red-500' : item.skipped ? 'text-slate-400 line-through' : 'text-slate-500'}`}>{item.label}</p>
       )}
     </>
   )
@@ -288,7 +340,7 @@ function StopNode({ item, colors, isCurrent, x, mood, edit, menuOpen, done, node
 
 export default function SuccessPath({
   sequence, colorsOf, openedChests,
-  onToggle, onOpenStop, onDo, onOpenChest, onOpenSettings, onOpenStats,
+  onToggle, onOpenStop, onDo, onOpenChest, onOpenSettings, onOpenStats, onMiss, onSkip, onClearMark,
   edit, onStartEdit, onSaveEdit, onCancelEdit,
   onReorder, onSetColor, onAddChest, onDeleteChest,
 }) {
@@ -296,10 +348,11 @@ export default function SuccessPath({
   const [menu, setMenu] = useState(null)   // id de la parada con el menú abierto
   const [viewImg, setViewImg] = useState(null) // imagen del vision board abierta en grande
 
+  // Las saltadas hoy (⏭️) no cuentan ni a favor ni en contra; las ❌ sí cuentan
   const stops = sequence.filter(n => n.type === 'stop')
-  const total = stops.length
+  const total = stops.filter(s => !s.skipped).length
   const done  = stops.filter(s => s.done).length
-  const curId = stops.find(s => !s.done)?.id
+  const curId = stops.find(s => !s.done && !s.missed && !s.skipped)?.id
   const pct   = total > 0 ? Math.round((done / total) * 100) : 0
   const level = levelFor(pct)
   const win   = total > 0 && done === total
@@ -335,7 +388,7 @@ export default function SuccessPath({
   // Paradas que hay antes de cada cofre (se abre cuando llevas ese número hechas)
   const chestNeed = {}
   let stopsSoFar = 0
-  sequence.forEach(n => { if (n.type === 'stop') stopsSoFar++; else chestNeed[n.id] = stopsSoFar })
+  sequence.forEach(n => { if (n.type === 'stop') { if (!n.skipped) stopsSoFar++ } else chestNeed[n.id] = stopsSoFar })
 
   // Cielo según la hora; se revisa cada 5 minutos
   const [phase, setPhase] = useState(() => skyPhase(new Date().getHours()))
@@ -353,7 +406,7 @@ export default function SuccessPath({
       x: OFFSETS[pos % OFFSETS.length],
       height: n.type === 'chest' ? (chestReady && !edit ? ROW + 30 : ROW) : (isCur && !edit ? ROW + 40 : ROW),
       marginTop: isCur && !edit ? 14 : 0,
-      reached: n.type === 'stop' ? n.done || isCur : done >= chestNeed[n.id],
+      reached: n.type === 'stop' ? n.done || n.missed || n.skipped || isCur : done >= chestNeed[n.id],
     }
   })
   // Tramo entre esta parada y la de abajo (la anterior del camino)
@@ -362,25 +415,22 @@ export default function SuccessPath({
     const cur = layout[pos], below = layout[pos - 1]
     return <Trail dx={below.x - cur.x} dy={cur.height + below.marginTop} walked={cur.reached && below.reached} />
   }
+  // Prado: 2 brotes por fila al llegar a ella, +1 por cada parada hecha hoy
+  const growth = (pos) => layout[pos].reached ? Math.min(MEADOW_MAX, 2 + done) : 0
   const freeSide = (pos, x) => x > 0 ? 'left' : x < 0 ? 'right' : pos % OFFSETS.length === 0 ? 'left' : 'right'
-  // Un cuadro del vision board en una de cada dos filas (saltando la actual,
-  // donde está Flowy) hasta usar todas las imágenes.
-  // Un cuadro del vision board en una de cada dos filas (saltando la actual,
-  // donde está Flowy) hasta usar todas las imágenes.
+  // Un cuadro del vision board en una de cada dos filas, siempre en la misma
+  // (así no se mueven al avanzar). En la fila actual, donde está Flowy, no se
+  // pone: moverlo a la fila de al lado lo dejaba pegado a otro cuadro y se montaban.
   const vision = visionForToday()
   const decor = {}
-  let nextImg = 0
   sequence.forEach((n, pos) => {
-    const isCur = n.type === 'stop' && !win && n.id === curId
-    if (pos % 2 === 0 && !isCur && nextImg < vision.length) {
-      decor[pos] = { img: vision[nextImg], tilt: nextImg % 2 ? 4 : -4 }
-      nextImg++
-    }
+    const i = pos / 2
+    if (pos % 2 || i >= vision.length) return
+    if (n.type === 'stop' && !win && n.id === curId) return
+    decor[pos] = { img: vision[i], tilt: i % 2 ? 4 : -4 }
   })
   const sideAt = (pos) => freeSide(pos, OFFSETS[pos % OFFSETS.length])
   const hasFrame = (pos) => !!decor[pos]
-  // Un cuadro en esta fila o en la de al lado por el mismo lado ocupa el hueco
-  const frameNear = (pos) => [pos - 1, pos, pos + 1].some(q => decor[q] && sideAt(q) === sideAt(pos))
   const scenery = (pos, x) => {
     const d = decor[pos]
     return d ? <VisionFrame src={d.img} x={x} side={sideAt(pos)} tilt={d.tilt} onOpen={() => setViewImg(d.img)} /> : null
@@ -465,9 +515,9 @@ export default function SuccessPath({
                 const opened = openedChests.has(node.id)
                 const ready  = done >= chestNeed[node.id] && !opened
                 return (
-                  <Row key={node.id} id={node.id} x={x} edit={edit} z="z-0" height={ready && !edit ? ROW + 30 : ROW}>
+                  <Row key={node.id} id={node.id} x={x} edit={edit} z={hasFrame(pos) && !edit ? 'z-20' : 'z-0'} height={ready && !edit ? ROW + 30 : ROW}>
+                    {!edit && <Meadow pos={pos} x={x} growth={growth(pos)} />}
                     {!edit && scenery(pos, x)}
-                    {!edit && <Meadow pos={pos} x={x} side={freeSide(pos, x)} freeBusy={frameNear(pos)} />}
                     {trailBelow(pos)}
                     <div className={`relative ${ready && !edit ? 'duo-wiggle' : ''}`}>
                       <Round colors={ready || edit ? GOLD : opened ? { bg: '#fef3c7', shadow: '#fde68a' } : GREY}
@@ -492,10 +542,10 @@ export default function SuccessPath({
               const isCurrent = !win && node.id === curId
               const menuOpen  = menu === node.id
               return (
-                <Row key={node.id} id={node.id} x={x} edit={edit} z={menuOpen ? 'z-40' : 'z-0'}
+                <Row key={node.id} id={node.id} x={x} edit={edit} z={menuOpen ? 'z-40' : hasFrame(pos) && !edit ? 'z-20' : isCurrent && !edit ? 'z-10' : 'z-0'}
                   height={isCurrent && !edit ? ROW + 40 : ROW} marginTop={isCurrent && !edit ? 14 : 0}>
-                  {!edit && !isCurrent && !menuOpen && scenery(pos, x)}
-                  {!edit && !menuOpen && <Meadow pos={pos} x={x} side={freeSide(pos, x)} freeBusy={frameNear(pos) || isCurrent} />}
+                  {!edit && !menuOpen && <Meadow pos={pos} x={x} growth={growth(pos)} flowySide={isCurrent ? (x > 0 ? 'left' : 'right') : null} />}
+                  {!edit && !menuOpen && scenery(pos, x)}
                   {trailBelow(pos)}
                   {node.done && !edit && !menuOpen && !hasFrame(pos) && <Bloom side={freeSide(pos, x)} night={night} seed={pos} />}
                   <StopNode item={node} colors={colorsOf(node.id)} isCurrent={isCurrent} x={x} mood={mood} edit={edit}
@@ -506,7 +556,10 @@ export default function SuccessPath({
                     onSetDone={() => { setMenu(null); onToggle(node.id) }}
                     onDo={() => { setMenu(null); onDo(node.id) }}
                     onMore={() => { setMenu(null); onOpenStop(node.id) }}
-                    onColor={k => { onSetColor(node.id, k); setMenu(null) }} />
+                    onColor={k => { onSetColor(node.id, k); setMenu(null) }}
+                    onMiss={why => { setMenu(null); onMiss(node.id, why) }}
+                    onSkip={() => { setMenu(null); onSkip(node.id) }}
+                    onClearMark={() => { setMenu(null); onClearMark(node.id) }} />
                 </Row>
               )
             })}

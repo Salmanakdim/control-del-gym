@@ -73,7 +73,9 @@ function AppInner() {
         })
       )
     }
-  }, [user])
+    // Solo al entrar con otro usuario: guardar la config del camino (updateUser) o
+    // renovar la sesión también cambian `user`, y recargar aquí desmontaba el inicio.
+  }, [user?.id])
 
   async function loadGymData() {
     setGymLoading(true)
