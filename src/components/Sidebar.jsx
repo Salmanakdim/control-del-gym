@@ -1,4 +1,4 @@
-import { LayoutDashboard, Dumbbell, TrendingUp, Menu, X, BookOpen, LogOut, CheckSquare, CalendarDays, Flame, Timer, FileText, Wind, Moon, Scale, Sparkles, Target, Settings, BrainCircuit, ClipboardCheck } from 'lucide-react'
+import { LayoutDashboard, Dumbbell, TrendingUp, Menu, X, BookOpen, LogOut, CheckSquare, CalendarDays, Flame, Timer, FileText, Wind, Moon, Scale, Sparkles, Target, Settings, ClipboardCheck } from 'lucide-react'
 import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { usePomodoro, fmtPomTime } from '../contexts/PomodoroContext'
@@ -7,7 +7,6 @@ const NAV = [
   { section: null },
   { id: 'dashboard',  label: 'Dashboard',      Icon: LayoutDashboard },
   { section: 'Productividad' },
-  { id: 'mentor',     label: 'Mentor',          Icon: BrainCircuit },
   { id: 'tasks',      label: 'Tareas',          Icon: CheckSquare },
   { id: 'calendar',   label: 'Calendario',      Icon: CalendarDays },
   { id: 'pomodoro',   label: 'Pomodoro',        Icon: Timer },
