@@ -6,6 +6,7 @@ import SuccessPath from '../components/SuccessPath'
 import { StopSheet, InlinePage, ChestSheet, PathSettingsSheet, StatsSheet } from '../components/PathSheets'
 import { usePathConfig, PATH_LINKS, readOpenedChests, writeOpenedChests, PRAYERS, newId, useToday, appToday, withMark, withDayEntry, customDoneFor, focusFor } from '../lib/pathConfig'
 import DayBar from '../components/DayBar'
+import { usePrayerTimes, PRAYER_NAMES } from '../lib/prayerTimes'
 import { buildPath } from '../lib/pathModel'
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -181,7 +182,14 @@ export default function Dashboard({ logs, setPage }) {
     ? { ...cfg, customLog: { ...(cfg.customLog || {}), [day]: [...new Set([...customDoneFor(cfg, day), ...[...past.extra].filter(id => id.startsWith('c_'))])] } }
     : cfg
   const path = buildPath({ config: cfgDay, habits, todayLogs: isPast ? past.logs : todayLogs, focusText: dayFocus.text, focusDone: dayFocus.done, today: day })
-  const { custom, customDone, linkOf, sequence, chestList, legacyChests, colorsOf } = path
+  const { custom, customDone, linkOf, chestList, legacyChests, colorsOf } = path
+
+  // Horas de oración (según tu ubicación) en las paradas Fajr, Dhuhr, Asr, Maghrib e Isha
+  const hasPrayerStops = path.stops.some(st => st.kind === 'custom' && PRAYER_NAMES.includes(st.label))
+  const prayer = usePrayerTimes(day, hasPrayerStops)
+  const sequence = path.sequence.map(n => n.type === 'stop' && n.kind === 'custom' && PRAYER_NAMES.includes(n.label) && prayer.times
+    ? { ...n, label: `${n.label} · ${prayer.times[n.label]}` }
+    : n)
   const items = path.stops
 
   function updateLayout(changes) {
@@ -398,6 +406,16 @@ export default function Dashboard({ logs, setPage }) {
         <DayBar day={day} today={today} userId={user.id} config={config}
           habitIds={habits.filter(h => !(config.hidden || []).includes(h.id)).map(h => h.id)}
           onChange={d => { setViewDate(d); setStopSheet(null); setInlineLink(null); setDraft(null) }} />
+        {hasPrayerStops && (prayer.status === 'noloc' || prayer.status === 'error') && (
+          <div className="bg-teal-50 border border-teal-100 rounded-2xl px-4 py-2.5 flex items-center gap-3">
+            <p className="flex-1 text-xs font-semibold text-teal-800">
+              🕌 {prayer.status === 'noloc' ? 'Activa la ubicación para ver las horas de oración.' : 'No se pudieron cargar las horas de oración.'}
+            </p>
+            <button onClick={prayer.retry} className="px-3 py-2 rounded-xl bg-teal-600 text-white text-xs font-black flex-shrink-0">
+              {prayer.status === 'noloc' ? 'Activar' : 'Reintentar'}
+            </button>
+          </div>
+        )}
         {isPast && (
           <div className="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-2.5 flex items-center gap-3">
             <p className="flex-1 text-xs font-semibold text-blue-800">
