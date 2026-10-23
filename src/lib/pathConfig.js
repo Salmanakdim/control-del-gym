@@ -163,6 +163,22 @@ export function withMark(config, date, id, mark) {
   return Object.fromEntries(keep.map(k => [k, all[k]]))
 }
 
+// Historial por día en la config (paradas propias hechas y Foco), para poder ver y
+// corregir días pasados aunque no exista la tabla path_logs. Se guardan 45 días.
+export function withDayEntry(map, date, value, keep = 45) {
+  const all = { ...(map || {}), [date]: value }
+  const days = Object.keys(all).sort().slice(-keep)
+  return Object.fromEntries(days.map(k => [k, all[k]]))
+}
+// Paradas propias hechas un día: customLog[día]; para hoy también vale el antiguo customDone
+export function customDoneFor(config, date) {
+  return config.customLog?.[date] || (config.customDone?.date === date ? config.customDone.ids : [])
+}
+// Foco de un día: { text, done }
+export function focusFor(config, date) {
+  return config.focusLog?.[date] || { text: '', done: false }
+}
+
 export function usePathConfig() {
   const { user } = useAuth()
   const [config, setConfig] = useState(() => ({ ...DEFAULTS, ...(user?.user_metadata?.flow_path || {}) }))

@@ -1,11 +1,11 @@
-import { guessLink, STOP_COLORS, marksFor } from './pathConfig'
+import { guessLink, STOP_COLORS, marksFor, customDoneFor } from './pathConfig'
 
 // Construye el camino (paradas + cofres, de abajo a arriba) a partir de una configuración.
 // Es una función pura: se usa para el camino guardado y para el borrador de Personalizar.
 export function buildPath({ config, habits, todayLogs, focusText, focusDone, today }) {
   const hidden     = config.hidden || []
   const custom     = config.custom || []
-  const customDone = config.customDone?.date === today ? config.customDone.ids : []
+  const customDone = customDoneFor(config, today)   // `today` es el día que se está viendo
   const marks      = marksFor(config, today)   // ❌ no lo hice / ⏭️ saltar hoy
 
   // Dónde se hace cada parada (hábito: elegido o adivinado por el nombre; propia: la suya)

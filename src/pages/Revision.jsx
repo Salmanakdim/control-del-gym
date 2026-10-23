@@ -272,7 +272,11 @@ export default function Revision() {
   const dayMarks   = pathCfg.dayMarks?.[date] || {}
   const sugGood    = [
     ...pathDay.habits.filter(h => pathDay.logs.has(h.id) && !hiddenIds.has(h.id)).map(h => h.id),
-    ...[...pathDay.extra].filter(id => !hiddenIds.has(id)),
+    ...[...new Set([
+      ...pathDay.extra,
+      ...(pathCfg.customLog?.[date] || []),               // paradas propias hechas ese día
+      ...(pathCfg.focusLog?.[date]?.done ? ['__focus'] : []),
+    ])].filter(id => !hiddenIds.has(id)),
   ].map(stopInfo).filter(Boolean)
   const sugBad     = Object.entries(dayMarks).filter(([, m]) => m.s === 'missed')
     .map(([id, m]) => { const t = stopInfo(id); return t && (m.why ? `${t} — ${m.why}` : t) }).filter(Boolean)
