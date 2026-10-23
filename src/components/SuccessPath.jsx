@@ -70,10 +70,29 @@ const atEdge = (side, x, margin) => side === 'left'
 function VisionFrame({ src, x, side, tilt, onOpen }) {
   return (
     <button onClick={onOpen} aria-label="Ver imagen del vision board"
-      className="absolute -top-5 p-1.5 pb-3.5 bg-white rounded-md shadow-lg active:scale-95 transition-transform"
+      className="absolute -top-5 p-1.5 pb-3.5 bg-white rounded-md shadow-lg active:scale-95 transition-transform lg:hidden"
       style={{ ...atEdge(side, x, 4), transform: `rotate(${tilt}deg)` }}>
-      <img src={src} alt="" draggable={false} decoding="async" className="block w-[92px] h-[100px] lg:w-[140px] lg:h-[145px] object-cover rounded-sm select-none" />
+      <img src={src} alt="" draggable={false} decoding="async" className="block w-[92px] h-[100px] object-cover rounded-sm select-none" />
     </button>
+  )
+}
+
+// PC: dos cuadros grandes juntos en el hueco de cada curva (unas 3 filas de alto).
+// El ancho sale del espacio libre a ese lado: (medio camino - zona de las paradas) / 2.
+function VisionPair({ srcs, x, side, onOpen }) {
+  const w = 'min(200px, calc((50cqw - 170px) / 2))'
+  return (
+    <div className="absolute hidden lg:flex items-start gap-4 pointer-events-none"
+      style={{ ...atEdge(side, x, 8), top: `calc(${ROW / 2}px - ${w} * 0.68)`, flexDirection: side === 'left' ? 'row' : 'row-reverse' }}>
+      {srcs.map((src, i) => (
+        <button key={src + i} onClick={() => onOpen(src)} aria-label="Ver imagen del vision board"
+          className="pointer-events-auto p-2 pb-5 bg-white rounded-md shadow-lg active:scale-95 transition-transform"
+          style={{ transform: `rotate(${i ? 3 : -3}deg)`, marginTop: i ? 28 : 0 }}>
+          <img src={src} alt="" draggable={false} decoding="async" className="block object-cover rounded-sm select-none"
+            style={{ width: w, height: `calc(${w} * 1.2)` }} />
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -429,11 +448,26 @@ export default function SuccessPath({
     if (n.type === 'stop' && !win && n.id === curId) return
     decor[pos] = { img: vision[i], tilt: i % 2 ? 4 : -4 }
   })
+  // PC: una pareja en la fila central de cada curva (pos 2, 6, 10…). Siempre las mismas
+  // fotos en el mismo sitio; si Flowy está en esa curva, esa pareja no se pone.
+  const curPos = sequence.findIndex(n => n.type === 'stop' && !win && n.id === curId)
+  const pairs = {}
+  sequence.forEach((n, pos) => {
+    if (pos % 4 !== 2 || !vision.length) return
+    if (curPos >= 0 && Math.abs(pos - curPos) <= 1) return
+    const k = (pos - 2) / 4
+    pairs[pos] = [vision[(2 * k) % vision.length], vision[(2 * k + 1) % vision.length]]
+  })
   const sideAt = (pos) => freeSide(pos, OFFSETS[pos % OFFSETS.length])
-  const hasFrame = (pos) => !!decor[pos]
+  const hasFrame = (pos) => !!decor[pos] || !!pairs[pos]
   const scenery = (pos, x) => {
-    const d = decor[pos]
-    return d ? <VisionFrame src={d.img} x={x} side={sideAt(pos)} tilt={d.tilt} onOpen={() => setViewImg(d.img)} /> : null
+    const d = decor[pos], pr = pairs[pos]
+    return (
+      <>
+        {d && <VisionFrame src={d.img} x={x} side={sideAt(pos)} tilt={d.tilt} onOpen={() => setViewImg(d.img)} />}
+        {pr && <VisionPair srcs={pr} x={x} side={sideAt(pos)} onOpen={setViewImg} />}
+      </>
+    )
   }
 
   return (
