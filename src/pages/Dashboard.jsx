@@ -287,6 +287,7 @@ export default function Dashboard({ logs, setPage }) {
       ? { ...n, label: `${n.label} · ${prayer.times[n.label]}` }
       : n)
     .map(n => n.type === 'stop' && !isPast && config.timers?.[n.id] ? { ...n, timer: config.timers[n.id] } : n)
+    .map(n => n.type === 'stop' && config.parts?.[n.id] ? { ...n, part: config.parts[n.id] } : n)
     .map(n => n.type === 'stop' && streaks[n.id] ? { ...n, streak: streaks[n.id], atRisk: !n.done && !n.skipped && lateNight && streaks[n.id] >= 3 } : n)
 
   // ⏱️ Temporizador de parada: { id, endAt, date }, guardado en el móvil para que siga

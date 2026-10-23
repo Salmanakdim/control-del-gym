@@ -3,7 +3,7 @@ import { X, Play, Check, RotateCcw, Plus, Minus, ArrowLeft, Shuffle, Eye, EyeOff
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { PATH_LINKS, newId, localDate, WEEKDAYS } from '../lib/pathConfig'
+import { PATH_LINKS, newId, localDate, WEEKDAYS, DAY_PARTS } from '../lib/pathConfig'
 import { stopSince } from '../lib/history'
 import { supabase } from '../lib/supabase'
 import Flowy from './Flowy'
@@ -282,7 +282,7 @@ export function ChestSheet({ rewards, assigned, breakMin, alreadyOpen, onOpened,
 
 // ── Personalizar camino ────────────────────────────────────────────
 // Fila de la lista "Orden y lugar": se arrastra desde el asa ⠿; el lápiz abre el editor
-function OrderRow({ node, setLink, onEdit, onHide, onDelete, rewards, chestReward, onChestReward, days, onDays, timer, onTimer }) {
+function OrderRow({ node, setLink, onEdit, onHide, onDelete, rewards, chestReward, onChestReward, days, onDays, timer, onTimer, part, onPart }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: node.id })
   const [open, setOpen]       = useState(false)
   const [icon, setIcon]       = useState(node.icon || '⭐')
@@ -353,6 +353,17 @@ function OrderRow({ node, setLink, onEdit, onHide, onDelete, rewards, chestRewar
                 </div>
               </div>
             )}
+            <div className="mb-2">
+              <p className="text-[11px] font-bold text-slate-500 mb-1">Parte del día</p>
+              <div className="grid grid-cols-4 gap-1">
+                {[['', '—'], ...Object.entries(DAY_PARTS)].map(([k, l]) => (
+                  <button key={k || 'none'} onClick={() => onPart(node.id, k)}
+                    className={`py-2 rounded-lg text-[11px] font-black ${(part || '') === k ? 'bg-amber-500 text-white' : 'bg-white border border-slate-200 text-slate-400'}`}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
             <p className="text-[11px] font-bold text-slate-500 mb-1">Días que toca (sin marcar = todos)</p>
             <div className="grid grid-cols-7 gap-1">
               {WEEKDAYS.map((w, d) => {
@@ -591,6 +602,8 @@ export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSa
                 onEdit={onEditStop} onHide={toggleHidden} onDelete={onDeleteStop}
                 rewards={config.rewards} chestReward={config.rewards.includes(config.chestRewards?.[id]) ? config.chestRewards[id] : ''}
                 onChestReward={(cid, r) => save({ chestRewards: { ...(config.chestRewards || {}), [cid]: r || undefined } })}
+                part={config.parts?.[id]}
+                onPart={(sid, k) => save({ parts: { ...(config.parts || {}), [sid]: k || undefined } })}
                 timer={config.timers?.[id]}
                 onTimer={(sid, m) => save({ timers: { ...(config.timers || {}), [sid]: m || undefined } })}
                 days={config.weekdays?.[id]}

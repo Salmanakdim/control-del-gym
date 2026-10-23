@@ -4,7 +4,7 @@ import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from 
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import Flowy from './Flowy'
-import { STOP_COLORS } from '../lib/pathConfig'
+import { STOP_COLORS, DAY_PARTS } from '../lib/pathConfig'
 import { visionForToday } from '../lib/vision'
 
 // Camino al éxito estilo Duolingo: se empieza abajo y se sube hasta el trofeo.
@@ -432,13 +432,33 @@ export default function SuccessPath({
   const night = phase === 'night'
 
   // Medidas de cada fila, para trazar el sendero hasta la parada de abajo
+  // 🌅/☀️/🌙 Partes del día: cuando cambia la parte entre una parada y la siguiente,
+  // se deja un hueco con un cartel en la fila de abajo (la última de la parte anterior).
+  // La primera parte se anuncia junto a "Inicio".
+  const PART_GAP = 46
+  const partAbove = {}
+  let firstPart = null, prevPart = null
+  sequence.forEach((n, pos) => {
+    if (n.type !== 'stop' || !n.part) return
+    if (!firstPart) firstPart = n.part
+    else if (n.part !== prevPart && pos > 0) partAbove[pos - 1] = n.part
+    prevPart = n.part
+  })
+  const partChip = (pos, x) => !edit && partAbove[pos] ? (
+    <div className="absolute z-10 pointer-events-none" style={{ top: -PART_GAP + 6, left: `calc(50% - ${x}px)`, transform: 'translateX(-50%)' }}>
+      <span className="px-3 py-1 rounded-full bg-white border border-slate-200 shadow-sm text-[11px] font-black text-slate-600 whitespace-nowrap">
+        {DAY_PARTS[partAbove[pos]]}
+      </span>
+    </div>
+  ) : null
+
   const layout = sequence.map((n, pos) => {
     const isCur = n.type === 'stop' && !win && n.id === curId
     const chestReady = n.type === 'chest' && done >= chestNeed[n.id] && !openedChests.has(n.id)
     return {
       x: OFFSETS[pos % OFFSETS.length],
       height: n.type === 'chest' ? (chestReady && !edit ? ROW + 30 : ROW) : (isCur && !edit ? ROW + 40 : ROW),
-      marginTop: isCur && !edit ? 14 : 0,
+      marginTop: (isCur && !edit ? 14 : 0) + (partAbove[pos] && !edit ? PART_GAP : 0),
       reached: n.type === 'stop' ? n.done || n.missed || n.skipped || isCur : done >= chestNeed[n.id],
     }
   })
@@ -567,7 +587,9 @@ export default function SuccessPath({
                 const opened = openedChests.has(node.id)
                 const ready  = done >= chestNeed[node.id] && !opened
                 return (
-                  <Row key={node.id} id={node.id} x={x} edit={edit} z={hasFrame(pos) && !edit ? 'z-20' : 'z-0'} height={ready && !edit ? ROW + 30 : ROW}>
+                  <Row key={node.id} id={node.id} x={x} edit={edit} z={hasFrame(pos) && !edit ? 'z-20' : 'z-0'} height={ready && !edit ? ROW + 30 : ROW}
+                    marginTop={partAbove[pos] && !edit ? PART_GAP : 0}>
+                    {partChip(pos, x)}
                     {!edit && <Meadow pos={pos} x={x} growth={growth(pos)} />}
                     {!edit && scenery(pos, x)}
                     {trailBelow(pos)}
@@ -595,7 +617,8 @@ export default function SuccessPath({
               const menuOpen  = menu === node.id
               return (
                 <Row key={node.id} id={node.id} x={x} edit={edit} z={menuOpen ? 'z-40' : hasFrame(pos) && !edit ? 'z-20' : isCurrent && !edit ? 'z-10' : 'z-0'}
-                  height={isCurrent && !edit ? ROW + 40 : ROW} marginTop={isCurrent && !edit ? 14 : 0}>
+                  height={isCurrent && !edit ? ROW + 40 : ROW} marginTop={(isCurrent && !edit ? 14 : 0) + (partAbove[pos] && !edit ? PART_GAP : 0)}>
+                  {partChip(pos, x)}
                   {!edit && !menuOpen && <Meadow pos={pos} x={x} growth={growth(pos)} flowySide={isCurrent ? (x > 0 ? 'left' : 'right') : null} />}
                   {!edit && !menuOpen && scenery(pos, x)}
                   {trailBelow(pos)}
@@ -619,6 +642,9 @@ export default function SuccessPath({
           </SortableContext>
         </DndContext>
 
+        {firstPart && !edit && (
+          <span className="mt-1 px-3 py-1 rounded-full bg-white border border-slate-200 shadow-sm text-[11px] font-black text-slate-600">{DAY_PARTS[firstPart]}</span>
+        )}
         <p className={`text-[10px] font-black uppercase tracking-widest mt-1 text-slate-300`}>Inicio</p>
       </div>
       </div>

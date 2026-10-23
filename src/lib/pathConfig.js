@@ -170,6 +170,9 @@ export function withDayEntry(map, date, value, keep = 45) {
   const days = Object.keys(all).sort().slice(-keep)
   return Object.fromEntries(days.map(k => [k, all[k]]))
 }
+// Parte del día de cada parada: config.parts[id] = 'm' | 't' | 'n'
+export const DAY_PARTS = { m: '🌅 Mañana', t: '☀️ Tarde', n: '🌙 Noche' }
+
 // Días de la semana en los que toca una parada: config.weekdays[id] = [0..6] (0 = lunes).
 // Sin entrada, toca todos los días.
 export const WEEKDAYS = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
