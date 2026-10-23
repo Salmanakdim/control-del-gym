@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { localDate } from '../lib/pathConfig'
+import { localDate, isScheduled } from '../lib/pathConfig'
 
 // Barra encima del camino para ir a días anteriores (y volver a hoy).
 // El calendario colorea cada día según los hábitos del camino que se hicieron.
@@ -27,7 +27,7 @@ function colorFor(ratio) {
   return 'bg-slate-200 text-slate-500'
 }
 
-export default function DayBar({ day, today, userId, habitIds, onChange }) {
+export default function DayBar({ day, today, userId, habitIds, config, onChange }) {
   const [open, setOpen]   = useState(false)
   const [month, setMonth] = useState(() => ({ y: Number(day.slice(0, 4)), m: Number(day.slice(5, 7)) - 1 }))
   const [counts, setCounts] = useState(null)   // { fecha: hábitos hechos }
@@ -87,7 +87,8 @@ export default function DayBar({ day, today, userId, habitIds, onChange }) {
               {days.map((d, i) => {
                 if (!d) return <div key={i} />
                 const enabled = d >= oldest && d <= today
-                const ratio = counts && enabled && habitIds.length ? (counts[d] || 0) / habitIds.length : null
+                const due   = habitIds.filter(id => isScheduled(config, id, d)).length   // solo los que tocaban ese día
+                const ratio = counts && enabled && due ? Math.min(1, (counts[d] || 0) / due) : null
                 return (
                   <button key={d} disabled={!enabled} onClick={() => go(d)}
                     className={`aspect-square rounded-lg text-xs font-bold flex items-center justify-center disabled:opacity-25

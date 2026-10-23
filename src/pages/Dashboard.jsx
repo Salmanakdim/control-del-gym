@@ -202,7 +202,7 @@ export default function Dashboard({ logs, setPage }) {
 
   // ── Personalizar: todo va a un borrador (config + hábitos) hasta "Guardar cambios" ──
   const [sDraft, setSDraft] = useState(null)   // { config, habits, ops: [cambios de hábitos], dirty }
-  const sp = sDraft && buildPath({ config: sDraft.config, habits: sDraft.habits, todayLogs, focusText, focusDone, today })
+  const sp = sDraft && buildPath({ config: sDraft.config, habits: sDraft.habits, todayLogs, focusText, focusDone, today, allDays: true })
 
   function openSettings() {
     setSDraft({ config: { ...config, chestList, order: sequence.map(n => n.id) }, habits: [...habits], ops: [], dirty: false })
@@ -395,7 +395,7 @@ export default function Dashboard({ logs, setPage }) {
 
       {/* ── Día que se ve (hoy o pasado) ──────────────────────── */}
       <div className="space-y-2">
-        <DayBar day={day} today={today} userId={user.id}
+        <DayBar day={day} today={today} userId={user.id} config={config}
           habitIds={habits.filter(h => !(config.hidden || []).includes(h.id)).map(h => h.id)}
           onChange={d => { setViewDate(d); setStopSheet(null); setInlineLink(null); setDraft(null) }} />
         {isPast && (

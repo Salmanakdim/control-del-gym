@@ -1,8 +1,9 @@
-import { guessLink, STOP_COLORS, marksFor, customDoneFor } from './pathConfig'
+import { guessLink, STOP_COLORS, marksFor, customDoneFor, isScheduled } from './pathConfig'
 
 // Construye el camino (paradas + cofres, de abajo a arriba) a partir de una configuración.
 // Es una función pura: se usa para el camino guardado y para el borrador de Personalizar.
-export function buildPath({ config, habits, todayLogs, focusText, focusDone, today }) {
+// allDays: true en Personalizar, para ver también las paradas que hoy no tocan
+export function buildPath({ config, habits, todayLogs, focusText, focusDone, today, allDays = false }) {
   const hidden     = config.hidden || []
   const custom     = config.custom || []
   const customDone = customDoneFor(config, today)   // `today` es el día que se está viendo
@@ -22,7 +23,7 @@ export function buildPath({ config, habits, todayLogs, focusText, focusDone, tod
     ...habits.map(h => ({ id: h.id, icon: h.icon || '⭐', label: h.name, done: todayLogs.has(h.id), kind: 'habit' })),
     ...custom.map(c => ({ id: c.id, icon: c.icon || '⭐', label: c.label, done: customDone.includes(c.id), kind: 'custom' })),
   ]
-  const stops = allStops.filter(s => !hidden.includes(s.id)).map(s => ({
+  const stops = allStops.filter(s => !hidden.includes(s.id) && (allDays || isScheduled(config, s.id, today))).map(s => ({
     ...s,
     type: 'stop',
     // Si está hecha, manda "hecho"; si no, lo que se haya marcado hoy

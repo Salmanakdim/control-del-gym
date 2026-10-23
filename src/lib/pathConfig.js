@@ -170,6 +170,17 @@ export function withDayEntry(map, date, value, keep = 45) {
   const days = Object.keys(all).sort().slice(-keep)
   return Object.fromEntries(days.map(k => [k, all[k]]))
 }
+// Días de la semana en los que toca una parada: config.weekdays[id] = [0..6] (0 = lunes).
+// Sin entrada, toca todos los días.
+export const WEEKDAYS = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
+export function weekdayOf(date) {
+  return (new Date(date + 'T12:00:00').getDay() + 6) % 7
+}
+export function isScheduled(config, id, date) {
+  const days = config.weekdays?.[id]
+  return !days || days.length === 0 || days.includes(weekdayOf(date))
+}
+
 // Paradas propias hechas un día: customLog[día]; para hoy también vale el antiguo customDone
 export function customDoneFor(config, date) {
   return config.customLog?.[date] || (config.customDone?.date === date ? config.customDone.ids : [])

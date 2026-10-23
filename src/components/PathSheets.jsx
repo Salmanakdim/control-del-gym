@@ -3,7 +3,7 @@ import { X, Play, Check, RotateCcw, Plus, Minus, ArrowLeft, Shuffle, Eye, EyeOff
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { PATH_LINKS, newId, localDate } from '../lib/pathConfig'
+import { PATH_LINKS, newId, localDate, WEEKDAYS } from '../lib/pathConfig'
 import { supabase } from '../lib/supabase'
 import Flowy from './Flowy'
 import Metas from '../pages/Metas'
@@ -247,7 +247,7 @@ export function ChestSheet({ rewards, assigned, breakMin, alreadyOpen, onOpened,
 
 // ── Personalizar camino ────────────────────────────────────────────
 // Fila de la lista "Orden y lugar": se arrastra desde el asa ⠿; el lápiz abre el editor
-function OrderRow({ node, setLink, onEdit, onHide, onDelete, rewards, chestReward, onChestReward }) {
+function OrderRow({ node, setLink, onEdit, onHide, onDelete, rewards, chestReward, onChestReward, days, onDays }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: node.id })
   const [open, setOpen]       = useState(false)
   const [icon, setIcon]       = useState(node.icon || '⭐')
@@ -268,9 +268,14 @@ function OrderRow({ node, setLink, onEdit, onHide, onDelete, rewards, chestRewar
           <GripVertical size={15} />
         </button>
         <span className="text-xl w-7 text-center">{isChest ? '🎁' : node.icon}</span>
-        <p className="flex-1 min-w-0 text-sm font-semibold text-slate-700 truncate">
-          {isChest ? 'Cofre' : isFocus ? 'Foco del día' : node.label}
-        </p>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-slate-700 truncate">
+            {isChest ? 'Cofre' : isFocus ? 'Foco del día' : node.label}
+          </p>
+          {!isChest && days?.length > 0 && days.length < 7 && (
+            <p className="text-[10px] font-black text-blue-600">{days.map(d => WEEKDAYS[d]).join(' · ')}</p>
+          )}
+        </div>
         {node.type === 'stop' && !isFocus && (
           <select value={node.link} onChange={e => setLink(node.id, e.target.value)}
             className="w-32 bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 text-xs font-bold text-slate-600">
@@ -299,6 +304,20 @@ function OrderRow({ node, setLink, onEdit, onHide, onDelete, rewards, chestRewar
 
       {open && (
         <div className="mt-2 space-y-2">
+          <div>
+            <p className="text-[11px] font-bold text-slate-500 mb-1">Días que toca (sin marcar = todos)</p>
+            <div className="grid grid-cols-7 gap-1">
+              {WEEKDAYS.map((w, d) => {
+                const on = days?.includes(d)
+                return (
+                  <button key={w} onClick={() => onDays(node.id, on ? days.filter(x => x !== d) : [...(days || []), d].sort())}
+                    className={`py-2 rounded-lg text-xs font-black ${on ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-400'}`}>
+                    {w}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
           {!isFocus && (
             <div className="flex gap-2">
               <input value={icon} onChange={e => setIcon(e.target.value)} maxLength={4} aria-label="Emoji de la parada"
@@ -482,7 +501,9 @@ export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSa
               <OrderRow key={id} node={byId[id]} setLink={setLink}
                 onEdit={onEditStop} onHide={toggleHidden} onDelete={onDeleteStop}
                 rewards={config.rewards} chestReward={config.rewards.includes(config.chestRewards?.[id]) ? config.chestRewards[id] : ''}
-                onChestReward={(cid, r) => save({ chestRewards: { ...(config.chestRewards || {}), [cid]: r || undefined } })} />
+                onChestReward={(cid, r) => save({ chestRewards: { ...(config.chestRewards || {}), [cid]: r || undefined } })}
+                days={config.weekdays?.[id]}
+                onDays={(sid, ds) => save({ weekdays: { ...(config.weekdays || {}), [sid]: ds.length && ds.length < 7 ? ds : undefined } })} />
             ))}
           </div>
         </SortableContext>
