@@ -310,16 +310,26 @@ export default function Dashboard({ logs, setPage }) {
   const timerLeft = stopTimer ? Math.max(0, Math.ceil((stopTimer.endAt - clock) / 1000)) : null
   const items = path.stops
 
+  // Orden completo, con las paradas ocultas o que hoy no tocan en su sitio. Al reordenar
+  // lo visible, las demás se quedan donde estaban (si no, al volver salían arriba del todo).
+  const fullSeq = buildPath({ config: cfg, habits, todayLogs, focusText, focusDone, today, allDays: true, includeHidden: true }).sequence.map(n => n.id)
+  function mergeOrder(visibleIds) {
+    const vis = new Set(path.sequence.map(n => n.id))
+    let i = 0
+    const merged = fullSeq.map(id => (vis.has(id) ? visibleIds[i++] : id)).filter(Boolean)
+    return [...merged, ...visibleIds.slice(i)]   // lo nuevo (p. ej. un cofre) va al final
+  }
+
   function updateLayout(changes) {
     if (draft) setDraft(d => ({ ...d, ...changes }))
     else saveConfig(changes)
   }
   function addChest() {
     const id = newId('chest_')
-    updateLayout({ chestList: [...chestList, id], order: [...sequence.map(n => n.id), id] })
+    updateLayout({ chestList: [...chestList, id], order: mergeOrder([...sequence.map(n => n.id), id]) })
   }
   function deleteChest(id) {
-    updateLayout({ chestList: chestList.filter(c => c !== id), order: sequence.map(n => n.id).filter(x => x !== id) })
+    updateLayout({ chestList: chestList.filter(c => c !== id), order: mergeOrder(sequence.map(n => n.id).filter(x => x !== id)) })
   }
   function setLink(id, link) {
     if (custom.some(x => x.id === id)) saveConfig({ custom: custom.map(x => x.id === id ? { ...x, link } : x) })
@@ -328,10 +338,10 @@ export default function Dashboard({ logs, setPage }) {
 
   // ── Personalizar: todo va a un borrador (config + hábitos) hasta "Guardar cambios" ──
   const [sDraft, setSDraft] = useState(null)   // { config, habits, ops: [cambios de hábitos], dirty }
-  const sp = sDraft && buildPath({ config: sDraft.config, habits: sDraft.habits, todayLogs, focusText, focusDone, today, allDays: true })
+  const sp = sDraft && buildPath({ config: sDraft.config, habits: sDraft.habits, todayLogs, focusText, focusDone, today, allDays: true, includeHidden: true })
 
   function openSettings() {
-    setSDraft({ config: { ...config, chestList, order: sequence.map(n => n.id) }, habits: [...habits], ops: [], dirty: false })
+    setSDraft({ config: { ...config, chestList, order: fullSeq }, habits: [...habits], ops: [], dirty: false })
     setShowSettings(true)
   }
   function sSet(changes) {
@@ -613,10 +623,10 @@ export default function Dashboard({ logs, setPage }) {
           onOpenSettings={openSettings}
           onOpenStats={() => setShowStats(true)}
           edit={!!draft}
-          onStartEdit={() => setDraft({ order: sequence.map(n => n.id), chestList, colors: { ...(config.colors || {}) } })}
+          onStartEdit={() => setDraft({ order: fullSeq, chestList, colors: { ...(config.colors || {}) } })}
           onSaveEdit={() => { saveConfig(draft); setDraft(null) }}
           onCancelEdit={() => setDraft(null)}
-          onReorder={ids => updateLayout({ order: ids, ...(legacyChests ? { chestList } : {}) })}
+          onReorder={ids => updateLayout({ order: mergeOrder(ids), ...(legacyChests ? { chestList } : {}) })}
           onSetColor={(id, k) => updateLayout({ colors: { ...(cfg.colors || {}), [id]: k } })}
           onAddChest={addChest}
           onDeleteChest={deleteChest}/>
@@ -693,7 +703,6 @@ export default function Dashboard({ logs, setPage }) {
         <PathSettingsSheet
           config={sDraft.config}
           save={sSet}
-          stops={sp.allStops.map(st => ({ ...st, link: sp.linkOf(st.id), hidden: sp.hidden.includes(st.id) }))}
           sequence={sp.sequence.map(n => n.type === 'stop' ? { ...n, link: sp.linkOf(n.id) } : n)}
           setLink={sSetLink}
           onSaveOrder={ids => sSet({ order: ids })}

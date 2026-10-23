@@ -294,7 +294,7 @@ function OrderRow({ node, setLink, onEdit, onHide, onDelete, rewards, chestRewar
 
   return (
     <div ref={setNodeRef} {...attributes}
-      className={`rounded-xl ${isDragging ? 'relative z-10 bg-white shadow-lg' : ''} ${open ? 'bg-slate-50 p-2 my-1' : 'py-1'}`}
+      className={`rounded-xl ${isDragging ? 'relative z-10 bg-white shadow-lg' : ''} ${open ? 'bg-slate-50 p-2 my-1' : 'py-1'} ${node.hidden && !open ? 'opacity-50' : ''}`}
       style={{ transform: CSS.Translate.toString(transform), transition }}>
       <div className="flex items-center gap-2">
         <button ref={setActivatorNodeRef} {...listeners} aria-label="Arrastrar"
@@ -323,6 +323,12 @@ function OrderRow({ node, setLink, onEdit, onHide, onDelete, rewards, chestRewar
             <option value="">🎲 Al azar</option>
             {rewards.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
+        )}
+        {!isChest && (
+          <button onClick={() => onHide(node.id)} aria-label={node.hidden ? 'Mostrar en el camino' : 'Ocultar del camino'}
+            className={`w-8 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${node.hidden ? 'bg-slate-200 text-slate-400' : 'bg-green-100 text-green-600'}`}>
+            {node.hidden ? <EyeOff size={15} /> : <Eye size={15} />}
+          </button>
         )}
         {isChest ? (
           <button onClick={() => onDelete(node.id)} aria-label="Borrar cofre"
@@ -400,10 +406,6 @@ function OrderRow({ node, setLink, onEdit, onHide, onDelete, rewards, chestRewar
             </div>
           ) : (
             <div className="flex gap-2">
-              <button onClick={() => onHide(node.id)}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-black text-slate-500">
-                <EyeOff size={13} /> Ocultar del camino
-              </button>
               {!isFocus && (
                 <button onClick={() => setConfirm(true)}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white border border-red-200 text-xs font-black text-red-500">
@@ -418,7 +420,7 @@ function OrderRow({ node, setLink, onEdit, onHide, onDelete, rewards, chestRewar
   )
 }
 
-export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSaveOrder, onAddChest, onEditStop, onDeleteStop, onAddPrayers, hasPrayers, dirty, onSaveAll, onClose, visionList, onAddVision, onRemoveVision }) {
+export function PathSettingsSheet({ config, save, sequence, setLink, onSaveOrder, onAddChest, onEditStop, onDeleteStop, onAddPrayers, hasPrayers, dirty, onSaveAll, onClose, visionList, onAddVision, onRemoveVision }) {
   // Se ve como en el camino (arriba = final del camino)
   const listIds  = [...sequence].reverse().map(n => n.id)
   const [askDiscard, setAskDiscard] = useState(false)
@@ -491,40 +493,6 @@ export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSa
         ))}
       </div>
 
-      {/* Paradas */}
-      <p className="mt-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">🛤️ Paradas</p>
-      <p className="text-xs text-slate-500 mt-1 mb-3">Oculta las que no quieras en el camino (las tuyas se añaden más abajo)</p>
-      <div className="space-y-2">
-        {stops.map(st => (
-          <div key={st.id} className={`flex items-center gap-2 rounded-xl px-3 py-2 ${st.hidden ? 'bg-slate-50 opacity-50' : 'bg-slate-50'}`}>
-            <span className="text-xl w-8 text-center">{st.icon}</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-slate-700 truncate">{st.kind === 'focus' ? 'Foco del día' : st.label}</p>
-              <p className="text-[10px] font-bold text-slate-400">
-                {st.kind === 'focus' ? 'Foco' : st.kind === 'habit' ? 'Hábito' : 'Parada propia'}
-              </p>
-            </div>
-            <button onClick={() => toggleHidden(st.id)} aria-label={st.hidden ? 'Mostrar' : 'Ocultar'}
-              className={`w-9 h-9 rounded-xl flex items-center justify-center ${st.hidden ? 'bg-slate-200 text-slate-400' : 'bg-green-100 text-green-600'}`}>
-              {st.hidden ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
-            {st.kind === 'custom' && (
-              <button onClick={() => onDeleteStop(st.id)} aria-label="Borrar parada"
-                className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-300 hover:text-red-500 active:bg-red-50">
-                <Trash2 size={16} />
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-      {!hasPrayers && (
-        <button onClick={onAddPrayers}
-          className="mt-3 w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-black text-white active:translate-y-0.5"
-          style={{ background: '#00cd9c', boxShadow: '0 4px 0 #00a881' }}>
-          🕌 Añadir las 5 oraciones
-        </button>
-      )}
-
       {/* Cofres */}
       <p className="mt-7 text-[11px] font-black text-slate-400 uppercase tracking-widest">🎁 Cofres</p>
       <p className="text-xs text-slate-500 mt-1">
@@ -593,7 +561,7 @@ export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSa
 
       {/* Orden y lugar de cada parada */}
       <p className="mt-7 text-[11px] font-black text-slate-400 uppercase tracking-widest">📍 Orden y lugar de cada parada</p>
-      <p className="text-xs text-slate-500 mt-1 mb-2">Arriba = final del camino (junto al 🏆). Arrastra desde ⠿ para ordenar.</p>
+      <p className="text-xs text-slate-500 mt-1 mb-2">Arriba = final del camino (junto al 🏆). Arrastra desde ⠿ para ordenar y usa 👁 para mostrar u ocultar.</p>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={listIds} strategy={verticalListSortingStrategy}>
           <div className="space-y-1">
@@ -613,6 +581,13 @@ export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSa
         </SortableContext>
       </DndContext>
       <div className="mt-3 bg-blue-50 rounded-2xl p-3 space-y-2">
+        {!hasPrayers && (
+          <button onClick={onAddPrayers}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-black text-white active:translate-y-0.5"
+            style={{ background: '#00cd9c', boxShadow: '0 3px 0 #00a881' }}>
+            🕌 Añadir las 5 oraciones
+          </button>
+        )}
         <p className="text-xs font-black text-blue-700">＋ Añadir parada</p>
         <div className="flex gap-2">
           <input value={stopIcon} onChange={e => setStopIcon(e.target.value)} maxLength={4} aria-label="Emoji"
