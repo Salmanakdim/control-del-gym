@@ -72,7 +72,7 @@ function VisionFrame({ src, x, side, tilt, onOpen }) {
     <button onClick={onOpen} aria-label="Ver imagen del vision board"
       className="absolute -top-5 p-1.5 pb-3.5 bg-white rounded-md shadow-lg active:scale-95 transition-transform"
       style={{ ...atEdge(side, x, 4), transform: `rotate(${tilt}deg)` }}>
-      <img src={src} alt="" draggable={false} decoding="async" className="block w-[92px] h-[100px] object-cover rounded-sm select-none" />
+      <img src={src} alt="" draggable={false} decoding="async" className="block w-[92px] h-[100px] lg:w-[140px] lg:h-[145px] object-cover rounded-sm select-none" />
     </button>
   )
 }
