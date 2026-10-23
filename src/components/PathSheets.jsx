@@ -4,6 +4,7 @@ import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from 
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { PATH_LINKS, newId, localDate, WEEKDAYS } from '../lib/pathConfig'
+import { stopSince } from '../lib/history'
 import { supabase } from '../lib/supabase'
 import Flowy from './Flowy'
 import Metas from '../pages/Metas'
@@ -651,19 +652,6 @@ export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSa
 
 // ── Estadísticas: % de días que se hizo cada parada en la última semana / mes ──
 
-// Día en que empezó a existir la parada (para no contar días en que no estaba)
-function stopSince(stop, habits) {
-  if (stop.kind === 'habit') {
-    const h = habits.find(x => x.id === stop.id)
-    return h?.created_at ? localDate(new Date(h.created_at)) : null
-  }
-  if (stop.kind === 'custom') {
-    // newId: prefijo + Date.now() en base 36 + 4 letras al azar
-    const ms = parseInt(stop.id.replace(/^c_(pray_)?/, '').slice(0, -4), 36)
-    return ms > 1.5e12 && ms < 4e12 ? localDate(new Date(ms)) : null
-  }
-  return null
-}
 
 function pctColor(p) {
   if (p >= 80) return '#58cc02'

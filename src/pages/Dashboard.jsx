@@ -7,6 +7,9 @@ import { StopSheet, InlinePage, ChestSheet, TimerSheet, PathSettingsSheet, Stats
 import { usePathConfig, PATH_LINKS, readOpenedChests, writeOpenedChests, PRAYERS, newId, useToday, appToday, withMark, withDayEntry, customDoneFor, focusFor } from '../lib/pathConfig'
 import DayBar from '../components/DayBar'
 import { usePrayerTimes, PRAYER_NAMES } from '../lib/prayerTimes'
+import { useHistory, makeIsDone, stopStreak, perfectStreak, dayComplete, stopSince, flowyLevel, shiftDate, HISTORY_DAYS } from '../lib/history'
+import { ACHIEVEMENTS, countOpenedChests } from '../lib/achievements'
+import { AchievementsSheet, DayCompleteOverlay, MedalToast } from '../components/Motivation'
 import { VISION_IMAGES, uploadVisionImage, deleteVisionImage } from '../lib/vision'
 import { buildPath } from '../lib/pathModel'
 
@@ -188,11 +191,87 @@ export default function Dashboard({ logs, setPage }) {
   // Horas de oración (según tu ubicación) en las paradas Fajr, Dhuhr, Asr, Maghrib e Isha
   const hasPrayerStops = path.stops.some(st => st.kind === 'custom' && PRAYER_NAMES.includes(st.label))
   const prayer = usePrayerTimes(day, hasPrayerStops)
+  // ── Motivación: rachas por parada, Flowy que evoluciona y logros ──────
+  const hist = useHistory(user.id, today)
+  const histReady = !!hist && !isPast
+  const liveDone = new Set(isPast ? [] : path.stops.filter(st => st.done).map(st => st.id))
+  const visibleIds = path.allStops.filter(st => !(config.hidden || []).includes(st.id)).map(st => st.id)
+  const logStart = m => Object.keys(m || {}).sort()[0] || today   // desde cuándo hay historial guardado
+  const since = Object.fromEntries(path.allStops.map(st => {
+    let d = stopSince(st, habits)
+    if (st.kind === 'custom') d = [d, logStart(config.customLog)].filter(Boolean).sort().at(-1)
+    if (st.kind === 'focus') d = logStart(config.focusLog)
+    return [st.id, d]
+  }))
+  const hctx = { isDone: makeIsDone({ logs: hist, config, today, liveDone }), config, today, since }
+  const streaks = histReady ? Object.fromEntries(path.stops.map(st => [st.id, stopStreak(st.id, hctx)])) : {}
+  const perfect = histReady ? perfectStreak(visibleIds, hctx) : 0
+  const level   = flowyLevel(perfect)
+  const lateNight = new Date().getHours() >= 20
+
+  // Estadísticas para los logros
+  let bestPerfect = 0
+  if (histReady) {
+    let run = 0
+    for (let i = HISTORY_DAYS - 1; i >= 0; i--) {
+      const d = shiftDate(today, -i)
+      if (dayComplete(d, visibleIds, hctx)) { run++; bestPerfect = Math.max(bestPerfect, run) }
+      else if (d !== today) run = 0
+    }
+  }
+  const fajrStop = path.stops.find(st => st.kind === 'custom' && st.label === 'Fajr')
+  const medalStats = histReady ? {
+    totalDone: [...hist].filter(k => !k.endsWith('|' + today)).length
+      + Object.entries(config.customLog || {}).filter(([d]) => d !== today).reduce((n, [, ids]) => n + ids.length, 0)
+      + Object.entries(config.focusLog || {}).filter(([d, f]) => d !== today && f.done).length
+      + liveDone.size,
+    bestPerfect,
+    bestStop: Math.max(0, ...Object.values(streaks)),
+    fajrStreak: fajrStop ? streaks[fajrStop.id] || 0 : 0,
+    chests: countOpenedChests(),
+  } : null
+  const unlocked = config.achievements || {}
+  const newly = medalStats ? ACHIEVEMENTS.filter(a => !unlocked[a.id] && a.test(medalStats)) : []
+  const newlyKey = newly.map(a => a.id).join(',')
+  const [toast, setToast] = useState(null)
+  const [showAch, setShowAch] = useState(false)
+  useEffect(() => {
+    if (!newlyKey) return
+    const t = setTimeout(() => {
+      const ids = newlyKey.split(',')
+      saveConfig({ achievements: { ...(config.achievements || {}), ...Object.fromEntries(ids.map(id => [id, today])) } })
+      setToast(ACHIEVEMENTS.find(a => a.id === ids[0]))
+    }, 0)
+    return () => clearTimeout(t)
+  }, [newlyKey])
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 4000)
+    return () => clearTimeout(t)
+  }, [toast])
+
+  // ¡Día completado! (una vez al día, al llegar al trofeo)
+  const dayWin = histReady && path.stops.some(st => !st.skipped) && path.stops.filter(st => !st.skipped).every(st => st.done)
+  const [celebrate, setCelebrate] = useState(false)
+  useEffect(() => {
+    if (!dayWin) return
+    let seen = null
+    try { seen = localStorage.getItem('fwd_celebrated') } catch { /* sin almacenamiento */ }
+    if (seen === today) return
+    const t = setTimeout(() => {
+      setCelebrate(true)
+      navigator.vibrate?.([100, 50, 100, 50, 300])
+      try { localStorage.setItem('fwd_celebrated', today) } catch { /* sin almacenamiento */ }
+    }, 900)
+    return () => clearTimeout(t)
+  }, [dayWin, today])
+
   const sequence = path.sequence
     .map(n => n.type === 'stop' && n.kind === 'custom' && PRAYER_NAMES.includes(n.label) && prayer.times
       ? { ...n, label: `${n.label} · ${prayer.times[n.label]}` }
       : n)
     .map(n => n.type === 'stop' && !isPast && config.timers?.[n.id] ? { ...n, timer: config.timers[n.id] } : n)
+    .map(n => n.type === 'stop' && streaks[n.id] ? { ...n, streak: streaks[n.id], atRisk: !n.done && !n.skipped && lateNight && streaks[n.id] >= 3 } : n)
 
   // ⏱️ Temporizador de parada: { id, endAt, date }, guardado en el móvil para que siga
   // contando aunque se cierre la ventana. Al llegar a 0 la parada se marca hecha sola.
@@ -498,6 +577,9 @@ export default function Dashboard({ logs, setPage }) {
           onSkip={id => markStop(id, { s: 'skipped' })}
           onClearMark={id => setMark(id, null)}
           onTimer={id => setTimerSheet(id)}
+          flowyLevel={level}
+          onOpenAchievements={() => setShowAch(true)}
+          medals={`${Object.keys(unlocked).length}/${ACHIEVEMENTS.length}`}
           onOpenStop={id => setStopSheet(id)}
           onDo={id => doNow(id)}
           onOpenChest={(id, available) => !isPast && available && setChestSheet({ k: id, alreadyOpen: openedChests.has(id) })}
@@ -554,6 +636,10 @@ export default function Dashboard({ logs, setPage }) {
           <span className="text-sm font-black tabular-nums">{String(Math.floor(timerLeft / 60)).padStart(2, '0')}:{String(timerLeft % 60).padStart(2, '0')}</span>
         </button>
       )}
+
+      {showAch && <AchievementsSheet unlocked={unlocked} perfect={perfect} level={level} onClose={() => setShowAch(false)} />}
+      {celebrate && <DayCompleteOverlay perfect={perfect} level={level} onClose={() => setCelebrate(false)} />}
+      {toast && <MedalToast achievement={toast} onClose={() => setToast(null)} />}
 
       {chestSheet && (
         <ChestSheet

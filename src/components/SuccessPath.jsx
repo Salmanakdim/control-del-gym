@@ -244,7 +244,7 @@ function Row({ id, x, height, marginTop, edit, z, children }) {
   )
 }
 
-function StopNode({ item, colors, isCurrent, x, mood, edit, menuOpen, done, nodeRef, onTap, onLong, onCloseMenu, onSetDone, onDo, onMore, onColor, onMiss, onSkip, onClearMark, onTimer }) {
+function StopNode({ item, colors, isCurrent, x, mood, flowyLvl, edit, menuOpen, done, nodeRef, onTap, onLong, onCloseMenu, onSetDone, onDo, onMore, onColor, onMiss, onSkip, onClearMark, onTimer }) {
   const press  = useLongPress(onLong, onTap)
   const [why, setWhy] = useState(null)   // texto del motivo mientras se marca ❌ (null = no se está preguntando)
   const inner  = x > 0 ? 'left' : 'right'
@@ -268,6 +268,13 @@ function StopNode({ item, colors, isCurrent, x, mood, edit, menuOpen, done, node
           <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-white text-[11px] font-black flex items-center justify-center shadow"
             style={{ color: colors.bg }}>✓</span>
         )}
+        {item.streak >= 2 && !edit && (
+          // 🔥 días seguidos; en rojo si por la noche aún no está hecha y la racha peligra
+          <span className={`absolute -top-1.5 -left-2 px-1.5 h-5 rounded-full text-[10px] font-black flex items-center gap-0.5 shadow
+            ${item.atRisk ? 'bg-red-500 text-white animate-pulse' : 'bg-white text-orange-600'}`}>
+            🔥{item.streak}
+          </span>
+        )}
         {item.missed && !edit && (
           <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-white text-[11px] font-black flex items-center justify-center shadow text-[#ff4b4b]">✕</span>
         )}
@@ -276,7 +283,7 @@ function StopNode({ item, colors, isCurrent, x, mood, edit, menuOpen, done, node
         )}
         {isCurrent && !edit && (
           <div className="absolute -top-2" style={inner === 'left' ? { right: '100%', marginRight: 16 } : { left: '100%', marginLeft: 16 }}>
-            <Flowy mood={mood} size={60} />
+            <Flowy mood={mood} size={60} level={flowyLvl} />
           </div>
         )}
       </div>
@@ -285,6 +292,7 @@ function StopNode({ item, colors, isCurrent, x, mood, edit, menuOpen, done, node
       {menuOpen ? (
         <div className="absolute top-[82px] left-1/2 -translate-x-1/2 z-50 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 w-52 sheet-up">
           <p className="text-xs font-black text-slate-700 px-2 pt-1 pb-2 truncate">{item.icon} {item.label}</p>
+          {item.streak >= 2 && <p className="text-[11px] font-bold text-orange-600 px-2 -mt-1 pb-2">🔥 {item.streak} días seguidos{item.atRisk ? ' · ¡no la pierdas hoy!' : ''}</p>}
           {item.missed && item.why && <p className="text-[11px] font-semibold text-red-500 px-2 -mt-1 pb-2">❌ {item.why}</p>}
           {edit ? (
             <div className="grid grid-cols-4 gap-2 p-1">
@@ -365,6 +373,7 @@ function StopNode({ item, colors, isCurrent, x, mood, edit, menuOpen, done, node
 export default function SuccessPath({
   sequence, colorsOf, openedChests,
   onToggle, onOpenStop, onDo, onOpenChest, onOpenSettings, onOpenStats, onMiss, onSkip, onClearMark, onTimer,
+  flowyLevel = 0, onOpenAchievements, medals = '',
   edit, onStartEdit, onSaveEdit, onCancelEdit,
   onReorder, onSetColor, onAddChest, onDeleteChest, visionImages,
 }) {
@@ -485,11 +494,15 @@ export default function SuccessPath({
       )}
 
       <div className="flex items-center justify-between">
-        <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Camino al éxito</p>
+        <p className="hidden sm:block text-[11px] font-black text-slate-400 uppercase tracking-widest">Camino al éxito</p>
         <div className="flex items-center gap-1.5">
           <span>{level.emoji}</span>
           <span className="text-xs font-black" style={{ color: level.color }}>{level.label}</span>
           <span className="text-xs font-black text-slate-400 tabular-nums ml-1">{done}/{total}</span>
+          <button onClick={onOpenAchievements} aria-label="Logros"
+            className="ml-1 h-8 px-2 rounded-xl bg-white shadow-sm flex items-center gap-1 text-xs font-black text-amber-600 active:bg-slate-50">
+            🏅<span className="tabular-nums">{medals}</span>
+          </button>
           <button onClick={onOpenStats} aria-label="Estadísticas del camino"
             className="ml-1 w-8 h-8 rounded-xl bg-white shadow-sm flex items-center justify-center text-slate-500 active:bg-slate-50">
             <BarChart3 size={15} />
@@ -538,7 +551,7 @@ export default function SuccessPath({
           </div>
           {win && (
             <div className="absolute bottom-0" style={{ left: '100%', marginLeft: 10 }}>
-              <Flowy mood="win" size={64} />
+              <Flowy mood="win" size={64} level={flowyLevel} />
             </div>
           )}
         </div>
@@ -587,7 +600,7 @@ export default function SuccessPath({
                   {!edit && !menuOpen && scenery(pos, x)}
                   {trailBelow(pos)}
                   {node.done && !edit && !menuOpen && !hasFrame(pos) && <Bloom side={freeSide(pos, x)} night={night} seed={pos} />}
-                  <StopNode item={node} colors={colorsOf(node.id)} isCurrent={isCurrent} x={x} mood={mood} edit={edit}
+                  <StopNode item={node} colors={colorsOf(node.id)} isCurrent={isCurrent} x={x} mood={mood} flowyLvl={flowyLevel} edit={edit}
                     menuOpen={menuOpen} done={done} nodeRef={isCurrent ? currentRef : undefined}
                     onTap={() => edit ? setMenu(menuOpen ? null : node.id) : node.canCheck === false ? onOpenStop(node.id) : onToggle(node.id)}
                     onLong={() => setMenu(node.id)}
