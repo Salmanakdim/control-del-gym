@@ -359,7 +359,7 @@ function OrderRow({ node, setLink, onEdit, onHide, onDelete, rewards, chestRewar
   )
 }
 
-export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSaveOrder, onAddChest, onEditStop, onDeleteStop, onAddPrayers, hasPrayers, dirty, onSaveAll, onClose }) {
+export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSaveOrder, onAddChest, onEditStop, onDeleteStop, onAddPrayers, hasPrayers, dirty, onSaveAll, onClose, visionList, onAddVision, onRemoveVision }) {
   // Se ve como en el camino (arriba = final del camino)
   const listIds  = [...sequence].reverse().map(n => n.id)
   const [askDiscard, setAskDiscard] = useState(false)
@@ -394,6 +394,24 @@ export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSa
   }
 
   const tryClose = () => (dirty ? setAskDiscard(true) : onClose())
+
+  // Subir fotos al vision board
+  const fileRef = useRef(null)
+  const [uploading, setUploading] = useState(false)
+  const [visionError, setVisionError] = useState('')
+  async function pickFiles(e) {
+    const files = [...(e.target.files || [])]
+    e.target.value = ''
+    if (!files.length) return
+    setUploading(true); setVisionError('')
+    try { await onAddVision(files) }
+    catch (err) {
+      setVisionError(/bucket|not found|row-level|policy/i.test(String(err?.message))
+        ? 'Falta preparar el almacén de fotos: ejecuta supabase_vision_storage.sql en Supabase.'
+        : 'No se pudo subir la foto. Inténtalo otra vez.')
+    }
+    setUploading(false)
+  }
 
   return (
     <Sheet onClose={tryClose}>
@@ -471,6 +489,29 @@ export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSa
           </button>
         ))}
       </div>
+
+      {/* Vision board */}
+      <p className="mt-7 text-[11px] font-black text-slate-400 uppercase tracking-widest">🖼️ Vision board</p>
+      <p className="text-xs text-slate-500 mt-1 mb-3">Las fotos de tus metas que salen a lo largo del camino.</p>
+      <div className="grid grid-cols-3 gap-2">
+        {visionList.map(url => (
+          <div key={url} className="relative aspect-[4/5] rounded-xl overflow-hidden bg-slate-100">
+            <img src={url} alt="" className="w-full h-full object-cover" />
+            <button onClick={() => onRemoveVision(url)} aria-label="Quitar foto"
+              className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/55 text-white flex items-center justify-center">
+              <X size={14} strokeWidth={3} />
+            </button>
+          </div>
+        ))}
+        <button onClick={() => fileRef.current?.click()} disabled={uploading}
+          className="aspect-[4/5] rounded-xl border-2 border-dashed border-slate-300 text-slate-400 flex flex-col items-center justify-center gap-1 active:bg-slate-50 disabled:opacity-50">
+          {uploading
+            ? <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            : <><Plus size={22} /><span className="text-[11px] font-black">Añadir fotos</span></>}
+        </button>
+      </div>
+      <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={pickFiles} />
+      {visionError && <p className="mt-2 text-xs font-semibold text-red-500">{visionError}</p>}
 
       {/* Recompensas */}
       <p className="mt-7 text-[11px] font-black text-slate-400 uppercase tracking-widest">🎉 Mis recompensas</p>

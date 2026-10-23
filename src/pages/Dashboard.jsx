@@ -7,6 +7,7 @@ import { StopSheet, InlinePage, ChestSheet, PathSettingsSheet, StatsSheet } from
 import { usePathConfig, PATH_LINKS, readOpenedChests, writeOpenedChests, PRAYERS, newId, useToday, appToday, withMark, withDayEntry, customDoneFor, focusFor } from '../lib/pathConfig'
 import DayBar from '../components/DayBar'
 import { usePrayerTimes, PRAYER_NAMES } from '../lib/prayerTimes'
+import { VISION_IMAGES, uploadVisionImage, deleteVisionImage } from '../lib/vision'
 import { buildPath } from '../lib/pathModel'
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -268,8 +269,27 @@ export default function Dashboard({ logs, setPage }) {
       colors: { ...(c.colors || {}), ...Object.fromEntries(add.map(x => [x.id, 'teal'])) },
     })
   }
+  // Vision board en Personalizar: las fotos se suben al momento, pero la lista solo
+  // cambia al guardar; si se cancela, se borran las recién subidas.
+  async function sAddVision(files) {
+    const urls = []
+    for (const f of files) urls.push(await uploadVisionImage(f, user.id))
+    setSDraft(d => ({
+      ...d, dirty: true,
+      uploaded: [...(d.uploaded || []), ...urls],
+      config: { ...d.config, vision: [...(d.config.vision || VISION_IMAGES), ...urls] },
+    }))
+  }
+  function sRemoveVision(url) {
+    setSDraft(d => ({ ...d, dirty: true, config: { ...d.config, vision: (d.config.vision || VISION_IMAGES).filter(u => u !== url) } }))
+  }
+
   async function saveSettings() {
     const { config: c, habits: hs, ops } = sDraft
+    const before = config.vision || VISION_IMAGES
+    const after  = c.vision || VISION_IMAGES
+    before.filter(u => !after.includes(u)).forEach(u => deleteVisionImage(u))
+    ;(sDraft.uploaded || []).filter(u => !after.includes(u)).forEach(u => deleteVisionImage(u))
     saveConfig(c)
     setHabits(hs)
     setSDraft(null)
@@ -280,6 +300,7 @@ export default function Dashboard({ logs, setPage }) {
     }
   }
   function closeSettings() {
+    ;(sDraft?.uploaded || []).forEach(u => deleteVisionImage(u))   // subidas sin guardar
     setSDraft(null)
     setShowSettings(false)
   }
@@ -434,6 +455,7 @@ export default function Dashboard({ logs, setPage }) {
       ) : (
         <SuccessPath
           key={day}
+          visionImages={config.vision || VISION_IMAGES}
           sequence={isPast ? sequence.map(n => n.type === 'stop' ? { ...n, canDo: false } : n) : sequence}
           colorsOf={colorsOf}
           openedChests={isPast ? new Set() : openedChests}
@@ -511,6 +533,9 @@ export default function Dashboard({ logs, setPage }) {
           onAddPrayers={sAddPrayers}
           hasPrayers={PRAYERS.every(pr => sp.custom.some(c => c.label === pr.label))}
           dirty={sDraft.dirty}
+          visionList={sDraft.config.vision || VISION_IMAGES}
+          onAddVision={sAddVision}
+          onRemoveVision={sRemoveVision}
           onSaveAll={saveSettings}
           onClose={closeSettings}/>
       )}

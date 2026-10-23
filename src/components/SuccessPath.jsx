@@ -361,7 +361,7 @@ export default function SuccessPath({
   sequence, colorsOf, openedChests,
   onToggle, onOpenStop, onDo, onOpenChest, onOpenSettings, onOpenStats, onMiss, onSkip, onClearMark,
   edit, onStartEdit, onSaveEdit, onCancelEdit,
-  onReorder, onSetColor, onAddChest, onDeleteChest,
+  onReorder, onSetColor, onAddChest, onDeleteChest, visionImages,
 }) {
   const currentRef = useRef(null)
   const [menu, setMenu] = useState(null)   // id de la parada con el menú abierto
@@ -440,7 +440,7 @@ export default function SuccessPath({
   // Un cuadro del vision board en una de cada dos filas, siempre en la misma
   // (así no se mueven al avanzar). En la fila actual, donde está Flowy, no se
   // pone: moverlo a la fila de al lado lo dejaba pegado a otro cuadro y se montaban.
-  const vision = visionForToday()
+  const vision = visionForToday(visionImages)
   const decor = {}
   sequence.forEach((n, pos) => {
     const i = pos / 2
