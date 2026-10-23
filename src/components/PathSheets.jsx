@@ -147,6 +147,40 @@ export function InlinePage({ link, item, onDone, onClose }) {
 const BREAK_KEY = 'fwd_break_end'
 function fmt(sec) { return `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}` }
 
+// Temporizador de una parada (p. ej. Meditar · 10 min). Al terminar se marca hecha sola.
+export function TimerSheet({ item, minutes, endAt, onStart, onCancel, onClose }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!endAt) return
+    const t = setInterval(() => setNow(Date.now()), 500)
+    return () => clearInterval(t)
+  }, [endAt])
+  const left  = endAt ? Math.max(0, Math.ceil((endAt - now) / 1000)) : minutes * 60
+  const total = minutes * 60
+  return (
+    <Sheet onClose={onClose}>
+      <div className="flex flex-col items-center text-center">
+        <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{item.icon} {item.label}</p>
+        <div className="relative mt-5 w-48 h-48">
+          <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+            <circle cx="50" cy="50" r="44" fill="none" stroke="#ede9fe" strokeWidth="8" />
+            <circle cx="50" cy="50" r="44" fill="none" stroke="#8b5cf6" strokeWidth="8" strokeLinecap="round"
+              strokeDasharray={2 * Math.PI * 44} strokeDashoffset={2 * Math.PI * 44 * (left / total)}
+              style={{ transition: 'stroke-dashoffset .5s linear' }} />
+          </svg>
+          <p className="absolute inset-0 flex items-center justify-center text-5xl font-black text-slate-800 tabular-nums">{fmt(left)}</p>
+        </div>
+        <div className="w-full mt-6 space-y-4">
+          {endAt
+            ? <BigButton color="grey" onClick={onCancel}>Parar temporizador</BigButton>
+            : <BigButton color="blue" onClick={onStart}><Play size={16} fill="white" /> Empezar · {minutes} min</BigButton>}
+          <p className="text-xs text-slate-400">Al terminar, la parada se marca como hecha. Puedes cerrar esta ventana: sigue contando.</p>
+        </div>
+      </div>
+    </Sheet>
+  )
+}
+
 export function ChestSheet({ rewards, assigned, breakMin, alreadyOpen, onOpened, onClose }) {
   const pick = () => rewards.length ? rewards[Math.floor(Math.random() * rewards.length)] : '😌 Descansar un poco'
   const [opened, setOpened] = useState(alreadyOpen)
@@ -247,7 +281,7 @@ export function ChestSheet({ rewards, assigned, breakMin, alreadyOpen, onOpened,
 
 // ── Personalizar camino ────────────────────────────────────────────
 // Fila de la lista "Orden y lugar": se arrastra desde el asa ⠿; el lápiz abre el editor
-function OrderRow({ node, setLink, onEdit, onHide, onDelete, rewards, chestReward, onChestReward, days, onDays }) {
+function OrderRow({ node, setLink, onEdit, onHide, onDelete, rewards, chestReward, onChestReward, days, onDays, timer, onTimer }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: node.id })
   const [open, setOpen]       = useState(false)
   const [icon, setIcon]       = useState(node.icon || '⭐')
@@ -305,6 +339,19 @@ function OrderRow({ node, setLink, onEdit, onHide, onDelete, rewards, chestRewar
       {open && (
         <div className="mt-2 space-y-2">
           <div>
+            {!isFocus && (
+              <div className="mb-2">
+                <p className="text-[11px] font-bold text-slate-500 mb-1">⏱️ Temporizador</p>
+                <div className="grid grid-cols-6 gap-1">
+                  {[0, 5, 10, 15, 20, 30].map(m => (
+                    <button key={m} onClick={() => onTimer(node.id, m)}
+                      className={`py-2 rounded-lg text-xs font-black ${(timer || 0) === m ? 'bg-violet-600 text-white' : 'bg-white border border-slate-200 text-slate-400'}`}>
+                      {m ? `${m}'` : 'No'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <p className="text-[11px] font-bold text-slate-500 mb-1">Días que toca (sin marcar = todos)</p>
             <div className="grid grid-cols-7 gap-1">
               {WEEKDAYS.map((w, d) => {
@@ -543,6 +590,8 @@ export function PathSettingsSheet({ config, save, stops, sequence, setLink, onSa
                 onEdit={onEditStop} onHide={toggleHidden} onDelete={onDeleteStop}
                 rewards={config.rewards} chestReward={config.rewards.includes(config.chestRewards?.[id]) ? config.chestRewards[id] : ''}
                 onChestReward={(cid, r) => save({ chestRewards: { ...(config.chestRewards || {}), [cid]: r || undefined } })}
+                timer={config.timers?.[id]}
+                onTimer={(sid, m) => save({ timers: { ...(config.timers || {}), [sid]: m || undefined } })}
                 days={config.weekdays?.[id]}
                 onDays={(sid, ds) => save({ weekdays: { ...(config.weekdays || {}), [sid]: ds.length && ds.length < 7 ? ds : undefined } })} />
             ))}

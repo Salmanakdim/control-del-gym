@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { usePomodoro } from '../contexts/PomodoroContext'
 import SuccessPath from '../components/SuccessPath'
-import { StopSheet, InlinePage, ChestSheet, PathSettingsSheet, StatsSheet } from '../components/PathSheets'
+import { StopSheet, InlinePage, ChestSheet, TimerSheet, PathSettingsSheet, StatsSheet } from '../components/PathSheets'
 import { usePathConfig, PATH_LINKS, readOpenedChests, writeOpenedChests, PRAYERS, newId, useToday, appToday, withMark, withDayEntry, customDoneFor, focusFor } from '../lib/pathConfig'
 import DayBar from '../components/DayBar'
 import { usePrayerTimes, PRAYER_NAMES } from '../lib/prayerTimes'
@@ -188,9 +188,30 @@ export default function Dashboard({ logs, setPage }) {
   // Horas de oración (según tu ubicación) en las paradas Fajr, Dhuhr, Asr, Maghrib e Isha
   const hasPrayerStops = path.stops.some(st => st.kind === 'custom' && PRAYER_NAMES.includes(st.label))
   const prayer = usePrayerTimes(day, hasPrayerStops)
-  const sequence = path.sequence.map(n => n.type === 'stop' && n.kind === 'custom' && PRAYER_NAMES.includes(n.label) && prayer.times
-    ? { ...n, label: `${n.label} · ${prayer.times[n.label]}` }
-    : n)
+  const sequence = path.sequence
+    .map(n => n.type === 'stop' && n.kind === 'custom' && PRAYER_NAMES.includes(n.label) && prayer.times
+      ? { ...n, label: `${n.label} · ${prayer.times[n.label]}` }
+      : n)
+    .map(n => n.type === 'stop' && !isPast && config.timers?.[n.id] ? { ...n, timer: config.timers[n.id] } : n)
+
+  // ⏱️ Temporizador de parada: { id, endAt, date }, guardado en el móvil para que siga
+  // contando aunque se cierre la ventana. Al llegar a 0 la parada se marca hecha sola.
+  const TIMER_KEY = 'fwd_stop_timer'
+  const [stopTimer, setStopTimer] = useState(() => {
+    try { const t = JSON.parse(localStorage.getItem(TIMER_KEY)); return t?.endAt ? t : null } catch { return null }
+  })
+  const [timerSheet, setTimerSheet] = useState(null)   // id de la parada con la hoja abierta
+  const [clock, setClock] = useState(() => Date.now())
+  function saveTimer(t) {
+    setStopTimer(t)
+    try { t ? localStorage.setItem(TIMER_KEY, JSON.stringify(t)) : localStorage.removeItem(TIMER_KEY) } catch { /* sin almacenamiento */ }
+  }
+  useEffect(() => {
+    if (!stopTimer) return
+    const t = setInterval(() => setClock(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [stopTimer])
+  const timerLeft = stopTimer ? Math.max(0, Math.ceil((stopTimer.endAt - clock) / 1000)) : null
   const items = path.stops
 
   function updateLayout(changes) {
@@ -352,6 +373,19 @@ export default function Dashboard({ logs, setPage }) {
     toggleItem(id)
   }
 
+  // Terminado: se avisa y se marca la parada (si sigue pendiente y es de hoy)
+  const timerDone = !!stopTimer && timerLeft === 0 && !loading
+  useEffect(() => {
+    if (!timerDone) return
+    const t = setTimeout(() => {
+      const node = path.stops.find(st => st.id === stopTimer.id)
+      saveTimer(null)
+      navigator.vibrate?.([200, 100, 200])
+      if (node && !node.done && stopTimer.date === today) toggleItem(node.id)
+    }, 0)
+    return () => clearTimeout(t)
+  }, [timerDone])
+
   // Marcar ❌ o ⏭️ una parada hecha: primero se deshace el "hecho"
   function markStop(id, mark) {
     const node = items.find(i => i.id === id)
@@ -463,6 +497,7 @@ export default function Dashboard({ logs, setPage }) {
           onMiss={(id, why) => markStop(id, { s: 'missed', ...(why ? { why } : {}) })}
           onSkip={id => markStop(id, { s: 'skipped' })}
           onClearMark={id => setMark(id, null)}
+          onTimer={id => setTimerSheet(id)}
           onOpenStop={id => setStopSheet(id)}
           onDo={id => doNow(id)}
           onOpenChest={(id, available) => !isPast && available && setChestSheet({ k: id, alreadyOpen: openedChests.has(id) })}
@@ -498,6 +533,26 @@ export default function Dashboard({ logs, setPage }) {
           item={openItem}
           onDone={() => { toggleItem(openItem.id); setInlineLink(null); setStopSheet(null) }}
           onClose={() => { setInlineLink(null); setStopSheet(null) }}/>
+      )}
+
+      {timerSheet && items.find(i => i.id === timerSheet) && (
+        <TimerSheet
+          item={items.find(i => i.id === timerSheet)}
+          minutes={config.timers?.[timerSheet] || 10}
+          endAt={stopTimer?.id === timerSheet ? stopTimer.endAt : null}
+          onStart={() => saveTimer({ id: timerSheet, endAt: Date.now() + (config.timers?.[timerSheet] || 10) * 60000, date: today })}
+          onCancel={() => saveTimer(null)}
+          onClose={() => setTimerSheet(null)}/>
+      )}
+
+      {/* Temporizador en marcha: aviso flotante para volver a él */}
+      {stopTimer && timerLeft > 0 && !timerSheet && (
+        <button onClick={() => setTimerSheet(stopTimer.id)}
+          className="fixed bottom-24 lg:bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2.5 rounded-full bg-violet-600 text-white shadow-xl">
+          <span className="text-sm">⏱️</span>
+          <span className="text-sm font-black truncate max-w-[140px]">{items.find(i => i.id === stopTimer.id)?.label || 'Temporizador'}</span>
+          <span className="text-sm font-black tabular-nums">{String(Math.floor(timerLeft / 60)).padStart(2, '0')}:{String(timerLeft % 60).padStart(2, '0')}</span>
+        </button>
       )}
 
       {chestSheet && (

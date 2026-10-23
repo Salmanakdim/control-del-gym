@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Settings, Check, Play, Pencil, GripVertical, X, Plus, RotateCcw, SlidersHorizontal, BarChart3, XCircle, SkipForward } from 'lucide-react'
+import { Settings, Check, Play, Pencil, GripVertical, X, Plus, RotateCcw, SlidersHorizontal, BarChart3, XCircle, SkipForward, Timer } from 'lucide-react'
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -244,7 +244,7 @@ function Row({ id, x, height, marginTop, edit, z, children }) {
   )
 }
 
-function StopNode({ item, colors, isCurrent, x, mood, edit, menuOpen, done, nodeRef, onTap, onLong, onCloseMenu, onSetDone, onDo, onMore, onColor, onMiss, onSkip, onClearMark }) {
+function StopNode({ item, colors, isCurrent, x, mood, edit, menuOpen, done, nodeRef, onTap, onLong, onCloseMenu, onSetDone, onDo, onMore, onColor, onMiss, onSkip, onClearMark, onTimer }) {
   const press  = useLongPress(onLong, onTap)
   const [why, setWhy] = useState(null)   // texto del motivo mientras se marca ❌ (null = no se está preguntando)
   const inner  = x > 0 ? 'left' : 'right'
@@ -330,6 +330,11 @@ function StopNode({ item, colors, isCurrent, x, mood, edit, menuOpen, done, node
                   <XCircle size={16} className="text-[#ff4b4b]" /> No lo hice
                 </button>
               )}
+              {item.timer > 0 && !item.done && (
+                <button onClick={onTimer} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-700 active:bg-slate-50">
+                  <Timer size={15} className="text-violet-500" /> Temporizador · {item.timer} min
+                </button>
+              )}
               {!item.skipped && (
                 <button onClick={onSkip} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-700 active:bg-slate-50">
                   <SkipForward size={15} className="text-slate-400" /> Saltar hoy
@@ -359,7 +364,7 @@ function StopNode({ item, colors, isCurrent, x, mood, edit, menuOpen, done, node
 
 export default function SuccessPath({
   sequence, colorsOf, openedChests,
-  onToggle, onOpenStop, onDo, onOpenChest, onOpenSettings, onOpenStats, onMiss, onSkip, onClearMark,
+  onToggle, onOpenStop, onDo, onOpenChest, onOpenSettings, onOpenStats, onMiss, onSkip, onClearMark, onTimer,
   edit, onStartEdit, onSaveEdit, onCancelEdit,
   onReorder, onSetColor, onAddChest, onDeleteChest, visionImages,
 }) {
@@ -593,7 +598,8 @@ export default function SuccessPath({
                     onColor={k => { onSetColor(node.id, k); setMenu(null) }}
                     onMiss={why => { setMenu(null); onMiss(node.id, why) }}
                     onSkip={() => { setMenu(null); onSkip(node.id) }}
-                    onClearMark={() => { setMenu(null); onClearMark(node.id) }} />
+                    onClearMark={() => { setMenu(null); onClearMark(node.id) }}
+                    onTimer={() => { setMenu(null); onTimer(node.id) }} />
                 </Row>
               )
             })}
