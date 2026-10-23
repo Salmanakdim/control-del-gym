@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Play, Check, RotateCcw, Plus, Minus, ArrowLeft, Shuffle, Eye, EyeOff, Trash2, GripVertical, Pencil } from 'lucide-react'
+import { X, Play, Check, RotateCcw, Plus, Minus, ArrowLeft, Shuffle, Eye, EyeOff, Trash2, GripVertical, Pencil, ChevronDown } from 'lucide-react'
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -281,6 +281,20 @@ export function ChestSheet({ rewards, assigned, breakMin, alreadyOpen, onOpened,
 }
 
 // ── Personalizar camino ────────────────────────────────────────────
+// Sección plegable de Personalizar: título + resumen; al tocar se abre o se cierra
+function Fold({ title, summary, open, onToggle, children }) {
+  return (
+    <div className={`mt-3 rounded-2xl border ${open ? 'border-slate-200 bg-white' : 'border-slate-100 bg-slate-50'}`}>
+      <button onClick={onToggle} aria-expanded={open} className="w-full flex items-center gap-2 px-4 py-3.5 text-left">
+        <span className="flex-1 text-sm font-black text-slate-700">{title}</span>
+        {summary != null && <span className="text-xs font-bold text-slate-400 truncate max-w-[45%]">{summary}</span>}
+        <ChevronDown size={18} className={`flex-shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && <div className="px-4 pb-4">{children}</div>}
+    </div>
+  )
+}
+
 // Fila de la lista "Orden y lugar": se arrastra desde el asa ⠿; el lápiz abre el editor
 function OrderRow({ node, setLink, onEdit, onHide, onDelete, rewards, chestReward, onChestReward, days, onDays, timer, onTimer, part, onPart }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: node.id })
@@ -455,6 +469,7 @@ export function PathSettingsSheet({ config, save, sequence, setLink, onSaveOrder
   }
 
   const tryClose = () => (dirty ? setAskDiscard(true) : onClose())
+  const [fold, setFold] = useState(null)   // sección abierta
 
   // Subir fotos al vision board
   const fileRef = useRef(null)
@@ -480,136 +495,136 @@ export function PathSettingsSheet({ config, save, sequence, setLink, onSaveOrder
       <p className="text-xs text-slate-500 mt-1">Nada cambia en el camino hasta que pulses Guardar cambios.</p>
 
       {/* Hora de inicio del día */}
-      <p className="mt-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">🌙 Mi día empieza a las</p>
-      <p className="text-xs text-slate-500 mt-1 mb-3">
-        Si te acuestas tarde, lo que marques de madrugada sigue contando para el día anterior.
-      </p>
-      <div className="grid grid-cols-7 gap-1.5">
-        {[0, 1, 2, 3, 4, 5, 6].map(h => (
-          <button key={h} onClick={() => save({ dayStart: h })}
-            className={`py-2 rounded-xl text-xs font-black tabular-nums ${(config.dayStart ?? 0) === h ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
-            {String(h).padStart(2, '0')}:00
-          </button>
-        ))}
-      </div>
-
-      {/* Cofres */}
-      <p className="mt-7 text-[11px] font-black text-slate-400 uppercase tracking-widest">🎁 Cofres</p>
-      <p className="text-xs text-slate-500 mt-1">
-        Añádelos, bórralos y muévelos con el botón ✏️ Editar del camino.
-      </p>
+      <Fold title="🌙 Mi día empieza a las" summary={`${String(config.dayStart ?? 0).padStart(2, '0')}:00`} open={fold === 'day'} onToggle={() => setFold(f => (f === 'day' ? null : 'day'))}>
+        <p className="text-xs text-slate-500 mt-1 mb-3">
+          Si te acuestas tarde, lo que marques de madrugada sigue contando para el día anterior.
+        </p>
+        <div className="grid grid-cols-7 gap-1.5">
+          {[0, 1, 2, 3, 4, 5, 6].map(h => (
+            <button key={h} onClick={() => save({ dayStart: h })}
+              className={`py-2 rounded-xl text-xs font-black tabular-nums ${(config.dayStart ?? 0) === h ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+              {String(h).padStart(2, '0')}:00
+            </button>
+          ))}
+        </div>
+      </Fold>
 
       {/* Descanso */}
-      <p className="mt-7 text-[11px] font-black text-slate-400 uppercase tracking-widest">⏱️ Minutos de descanso</p>
-      <div className="flex items-center gap-3 mt-3">
-        <button onClick={() => save({ breakMin: Math.max(1, config.breakMin - 1) })}
-          className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600"><Minus size={18} /></button>
-        <p className="flex-1 text-center text-3xl font-black text-slate-800 tabular-nums">{config.breakMin}<span className="text-base text-slate-400"> min</span></p>
-        <button onClick={() => save({ breakMin: Math.min(180, config.breakMin + 1) })}
-          className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600"><Plus size={18} /></button>
-      </div>
-      <div className="flex gap-2 mt-3">
-        {[5, 10, 15, 20, 30].map(m => (
-          <button key={m} onClick={() => save({ breakMin: m })}
-            className={`flex-1 py-2 rounded-xl text-xs font-black ${config.breakMin === m ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
-            {m}
-          </button>
-        ))}
-      </div>
+      <Fold title="⏱️ Minutos de descanso" summary={`${config.breakMin} min`} open={fold === 'break'} onToggle={() => setFold(f => (f === 'break' ? null : 'break'))}>
+        <div className="flex items-center gap-3 mt-3">
+          <button onClick={() => save({ breakMin: Math.max(1, config.breakMin - 1) })}
+            className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600"><Minus size={18} /></button>
+          <p className="flex-1 text-center text-3xl font-black text-slate-800 tabular-nums">{config.breakMin}<span className="text-base text-slate-400"> min</span></p>
+          <button onClick={() => save({ breakMin: Math.min(180, config.breakMin + 1) })}
+            className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600"><Plus size={18} /></button>
+        </div>
+        <div className="flex gap-2 mt-3">
+          {[5, 10, 15, 20, 30].map(m => (
+            <button key={m} onClick={() => save({ breakMin: m })}
+              className={`flex-1 py-2 rounded-xl text-xs font-black ${config.breakMin === m ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+              {m}
+            </button>
+          ))}
+        </div>
+      </Fold>
 
       {/* Vision board */}
-      <p className="mt-7 text-[11px] font-black text-slate-400 uppercase tracking-widest">🖼️ Vision board</p>
-      <p className="text-xs text-slate-500 mt-1 mb-3">Las fotos de tus metas que salen a lo largo del camino.</p>
-      <div className="grid grid-cols-3 gap-2">
-        {visionList.map(url => (
-          <div key={url} className="relative aspect-[4/5] rounded-xl overflow-hidden bg-slate-100">
-            <img src={url} alt="" className="w-full h-full object-cover" />
-            <button onClick={() => onRemoveVision(url)} aria-label="Quitar foto"
-              className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/55 text-white flex items-center justify-center">
-              <X size={14} strokeWidth={3} />
-            </button>
-          </div>
-        ))}
-        <button onClick={() => fileRef.current?.click()} disabled={uploading}
-          className="aspect-[4/5] rounded-xl border-2 border-dashed border-slate-300 text-slate-400 flex flex-col items-center justify-center gap-1 active:bg-slate-50 disabled:opacity-50">
-          {uploading
-            ? <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            : <><Plus size={22} /><span className="text-[11px] font-black">Añadir fotos</span></>}
-        </button>
-      </div>
-      <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={pickFiles} />
-      {visionError && <p className="mt-2 text-xs font-semibold text-red-500">{visionError}</p>}
+      <Fold title="🖼️ Vision board" summary={`${visionList.length} fotos`} open={fold === 'vision'} onToggle={() => setFold(f => (f === 'vision' ? null : 'vision'))}>
+        <p className="text-xs text-slate-500 mt-1 mb-3">Las fotos de tus metas que salen a lo largo del camino.</p>
+        <div className="grid grid-cols-3 gap-2">
+          {visionList.map(url => (
+            <div key={url} className="relative aspect-[4/5] rounded-xl overflow-hidden bg-slate-100">
+              <img src={url} alt="" className="w-full h-full object-cover" />
+              <button onClick={() => onRemoveVision(url)} aria-label="Quitar foto"
+                className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/55 text-white flex items-center justify-center">
+                <X size={14} strokeWidth={3} />
+              </button>
+            </div>
+          ))}
+          <button onClick={() => fileRef.current?.click()} disabled={uploading}
+            className="aspect-[4/5] rounded-xl border-2 border-dashed border-slate-300 text-slate-400 flex flex-col items-center justify-center gap-1 active:bg-slate-50 disabled:opacity-50">
+            {uploading
+              ? <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              : <><Plus size={22} /><span className="text-[11px] font-black">Añadir fotos</span></>}
+          </button>
+        </div>
+        <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={pickFiles} />
+        {visionError && <p className="mt-2 text-xs font-semibold text-red-500">{visionError}</p>}
+      </Fold>
 
       {/* Recompensas */}
-      <p className="mt-7 text-[11px] font-black text-slate-400 uppercase tracking-widest">🎉 Mis recompensas</p>
-      <div className="mt-3 space-y-2">
-        {config.rewards.map((r, i) => (
-          <div key={i} className="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-2.5">
-            <p className="flex-1 text-sm font-semibold text-slate-700">{r}</p>
-            <button onClick={() => save({ rewards: config.rewards.filter((_, j) => j !== i) })}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:text-red-500"><X size={15} /></button>
-          </div>
-        ))}
-      </div>
-      <div className="flex gap-2 mt-3">
-        <input value={newReward} onChange={e => setNewReward(e.target.value)} onKeyDown={e => e.key === 'Enter' && addReward()}
-          placeholder="Ej: 🍫 Comer algo rico"
-          className="flex-1 min-w-0 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <button onClick={addReward} disabled={!newReward.trim()}
-          className="w-11 rounded-xl bg-blue-600 text-white flex items-center justify-center disabled:opacity-30"><Plus size={18} /></button>
-      </div>
+      <Fold title="🎉 Mis recompensas" summary={`${config.rewards.length}`} open={fold === 'rewards'} onToggle={() => setFold(f => (f === 'rewards' ? null : 'rewards'))}>
+        <div className="mt-3 space-y-2">
+          {config.rewards.map((r, i) => (
+            <div key={i} className="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-2.5">
+              <p className="flex-1 text-sm font-semibold text-slate-700">{r}</p>
+              <button onClick={() => save({ rewards: config.rewards.filter((_, j) => j !== i) })}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:text-red-500"><X size={15} /></button>
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-2 mt-3">
+          <input value={newReward} onChange={e => setNewReward(e.target.value)} onKeyDown={e => e.key === 'Enter' && addReward()}
+            placeholder="Ej: 🍫 Comer algo rico"
+            className="flex-1 min-w-0 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <button onClick={addReward} disabled={!newReward.trim()}
+            className="w-11 rounded-xl bg-blue-600 text-white flex items-center justify-center disabled:opacity-30"><Plus size={18} /></button>
+        </div>
+      </Fold>
 
       {/* Orden y lugar de cada parada */}
-      <p className="mt-7 text-[11px] font-black text-slate-400 uppercase tracking-widest">📍 Orden y lugar de cada parada</p>
-      <p className="text-xs text-slate-500 mt-1 mb-2">Arriba = final del camino (junto al 🏆). Arrastra desde ⠿ para ordenar y usa 👁 para mostrar u ocultar.</p>
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={listIds} strategy={verticalListSortingStrategy}>
-          <div className="space-y-1">
-            {listIds.filter(id => byId[id]).map(id => (
-              <OrderRow key={id} node={byId[id]} setLink={setLink}
-                onEdit={onEditStop} onHide={toggleHidden} onDelete={onDeleteStop}
-                rewards={config.rewards} chestReward={config.rewards.includes(config.chestRewards?.[id]) ? config.chestRewards[id] : ''}
-                onChestReward={(cid, r) => save({ chestRewards: { ...(config.chestRewards || {}), [cid]: r || undefined } })}
-                part={config.parts?.[id]}
-                onPart={(sid, k) => save({ parts: { ...(config.parts || {}), [sid]: k || undefined } })}
-                timer={config.timers?.[id]}
-                onTimer={(sid, m) => save({ timers: { ...(config.timers || {}), [sid]: m || undefined } })}
-                days={config.weekdays?.[id]}
-                onDays={(sid, ds) => save({ weekdays: { ...(config.weekdays || {}), [sid]: ds.length && ds.length < 7 ? ds : undefined } })} />
-            ))}
+      <Fold title="📍 Paradas y cofres" summary={`${sequence.filter(n => n.type === 'stop').length} paradas · ${sequence.filter(n => n.type === 'chest').length} cofres`} open={fold === 'order'} onToggle={() => setFold(f => (f === 'order' ? null : 'order'))}>
+        <p className="text-xs text-slate-500 mt-1 mb-2">Arriba = final del camino (junto al 🏆). Arrastra desde ⠿ para ordenar y usa 👁 para mostrar u ocultar.</p>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={listIds} strategy={verticalListSortingStrategy}>
+            <div className="space-y-1">
+              {listIds.filter(id => byId[id]).map(id => (
+                <OrderRow key={id} node={byId[id]} setLink={setLink}
+                  onEdit={onEditStop} onHide={toggleHidden} onDelete={onDeleteStop}
+                  rewards={config.rewards} chestReward={config.rewards.includes(config.chestRewards?.[id]) ? config.chestRewards[id] : ''}
+                  onChestReward={(cid, r) => save({ chestRewards: { ...(config.chestRewards || {}), [cid]: r || undefined } })}
+                  part={config.parts?.[id]}
+                  onPart={(sid, k) => save({ parts: { ...(config.parts || {}), [sid]: k || undefined } })}
+                  timer={config.timers?.[id]}
+                  onTimer={(sid, m) => save({ timers: { ...(config.timers || {}), [sid]: m || undefined } })}
+                  days={config.weekdays?.[id]}
+                  onDays={(sid, ds) => save({ weekdays: { ...(config.weekdays || {}), [sid]: ds.length && ds.length < 7 ? ds : undefined } })} />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+        <div className="mt-3 bg-blue-50 rounded-2xl p-3 space-y-2">
+          {!hasPrayers && (
+            <button onClick={onAddPrayers}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-black text-white active:translate-y-0.5"
+              style={{ background: '#00cd9c', boxShadow: '0 3px 0 #00a881' }}>
+              🕌 Añadir las 5 oraciones
+            </button>
+          )}
+          <p className="text-xs font-black text-blue-700">＋ Añadir parada</p>
+          <div className="flex gap-2">
+            <input value={stopIcon} onChange={e => setStopIcon(e.target.value)} maxLength={4} aria-label="Emoji"
+              className="w-12 text-center border border-slate-200 rounded-xl py-2.5 text-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input value={stopName} onChange={e => setStopName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addStop()}
+              placeholder="Ej: Leer 10 páginas"
+              className="flex-1 min-w-0 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
-        </SortableContext>
-      </DndContext>
-      <div className="mt-3 bg-blue-50 rounded-2xl p-3 space-y-2">
-        {!hasPrayers && (
-          <button onClick={onAddPrayers}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-black text-white active:translate-y-0.5"
-            style={{ background: '#00cd9c', boxShadow: '0 3px 0 #00a881' }}>
-            🕌 Añadir las 5 oraciones
+          <div className="flex gap-2">
+            <select value={stopLink} onChange={e => setStopLink(e.target.value)}
+              className="flex-1 min-w-0 bg-white border border-slate-200 rounded-xl px-2 py-2.5 text-xs font-bold text-slate-600">
+              {Object.entries(PATH_LINKS).map(([id, l]) => <option key={id} value={id}>{l.emoji} {l.label}</option>)}
+            </select>
+            <button onClick={addStop} disabled={!stopName.trim()}
+              className="px-4 rounded-xl bg-blue-600 text-white text-sm font-black disabled:opacity-30">Añadir</button>
+          </div>
+          <button onClick={onAddChest}
+            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-black text-amber-900"
+            style={{ background: '#ffc800', boxShadow: '0 3px 0 #e0a800' }}>
+            ＋ 🎁 Añadir cofre
           </button>
-        )}
-        <p className="text-xs font-black text-blue-700">＋ Añadir parada</p>
-        <div className="flex gap-2">
-          <input value={stopIcon} onChange={e => setStopIcon(e.target.value)} maxLength={4} aria-label="Emoji"
-            className="w-12 text-center border border-slate-200 rounded-xl py-2.5 text-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          <input value={stopName} onChange={e => setStopName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addStop()}
-            placeholder="Ej: Leer 10 páginas"
-            className="flex-1 min-w-0 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
-        <div className="flex gap-2">
-          <select value={stopLink} onChange={e => setStopLink(e.target.value)}
-            className="flex-1 min-w-0 bg-white border border-slate-200 rounded-xl px-2 py-2.5 text-xs font-bold text-slate-600">
-            {Object.entries(PATH_LINKS).map(([id, l]) => <option key={id} value={id}>{l.emoji} {l.label}</option>)}
-          </select>
-          <button onClick={addStop} disabled={!stopName.trim()}
-            className="px-4 rounded-xl bg-blue-600 text-white text-sm font-black disabled:opacity-30">Añadir</button>
-        </div>
-        <button onClick={onAddChest}
-          className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-black text-amber-900"
-          style={{ background: '#ffc800', boxShadow: '0 3px 0 #e0a800' }}>
-          ＋ 🎁 Añadir cofre
-        </button>
-      </div>
+      </Fold>
+
       {/* Guardar / descartar todos los cambios */}
       <div className="sticky -mx-5 mt-6 px-5 pt-3 bg-white border-t border-slate-100"
         style={{ bottom: 'calc(-2rem - env(safe-area-inset-bottom))', paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
