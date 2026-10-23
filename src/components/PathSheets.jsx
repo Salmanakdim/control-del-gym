@@ -659,7 +659,7 @@ function pctColor(p) {
   return '#ff4b4b'
 }
 
-export function StatsSheet({ userId, stops, habits, today, onClose }) {
+export function StatsSheet({ userId, stops, habits, today, week, reasons = [], onClose }) {
   const [days, setDays] = useState(7)
   const [loaded, setLoaded] = useState(null)   // { key, habitLogs: Set, pathLogs: Set | null, pathFrom }
   const key  = `${days}|${today}`
@@ -713,6 +713,39 @@ export function StatsSheet({ userId, stops, habits, today, onClose }) {
   return (
     <Sheet onClose={onClose}>
       <h2 className="text-xl font-black text-slate-800">Tu progreso</h2>
+
+      {/* Esta semana: % del camino cada día */}
+      {week && (
+        <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">📅 Esta semana</p>
+            {(() => {
+              const vals = week.filter(w => w.pct != null).map(w => w.pct)
+              return vals.length ? <p className="text-xs font-black text-slate-600">Media: {Math.round(vals.reduce((a, b) => a + b, 0) / vals.length)} %</p> : null
+            })()}
+          </div>
+          <div className="flex items-end gap-2 h-28 mt-3">
+            {week.map(w => (
+              <div key={w.date} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
+                <span className="text-[10px] font-black text-slate-500 tabular-nums">{w.pct != null ? `${w.pct}%` : '–'}</span>
+                <div className="w-full rounded-t-lg rounded-b-sm transition-all"
+                  style={{ height: `${Math.max(4, w.pct || 0) * 0.8}%`, background: w.pct == null ? '#e2e8f0' : w.pct >= 100 ? '#ffc800' : pctColor(w.pct) }} />
+                <span className={`text-[10px] font-black ${w.date === today ? 'text-blue-600' : 'text-slate-400'}`}>
+                  {['L', 'M', 'X', 'J', 'V', 'S', 'D'][(new Date(w.date + 'T12:00:00').getDay() + 6) % 7]}
+                </span>
+              </div>
+            ))}
+          </div>
+          {reasons.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-slate-200">
+              <p className="text-xs font-black text-slate-600 mb-1">❌ Motivos más repetidos</p>
+              {reasons.map(r => (
+                <p key={r.text} className="text-xs text-slate-500 font-semibold">• {r.text} <span className="text-slate-400">({r.n} {r.n === 1 ? 'vez' : 'veces'})</span></p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       <div className="flex gap-2 mt-3 p-1 bg-slate-100 rounded-2xl">
         {[[7, 'Semana'], [30, 'Mes']].map(([n, l]) => (
           <button key={n} onClick={() => setDays(n)}

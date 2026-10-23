@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { usePomodoro } from '../contexts/PomodoroContext'
 import SuccessPath from '../components/SuccessPath'
 import { StopSheet, InlinePage, ChestSheet, TimerSheet, PathSettingsSheet, StatsSheet } from '../components/PathSheets'
-import { usePathConfig, PATH_LINKS, readOpenedChests, writeOpenedChests, PRAYERS, newId, useToday, appToday, withMark, withDayEntry, customDoneFor, focusFor } from '../lib/pathConfig'
+import { usePathConfig, PATH_LINKS, readOpenedChests, writeOpenedChests, PRAYERS, newId, useToday, appToday, withMark, withDayEntry, customDoneFor, focusFor, isScheduled, marksFor, weekdayOf } from '../lib/pathConfig'
 import DayBar from '../components/DayBar'
 import { usePrayerTimes, PRAYER_NAMES } from '../lib/prayerTimes'
 import { useHistory, makeIsDone, stopStreak, perfectStreak, dayComplete, stopSince, flowyLevel, shiftDate, HISTORY_DAYS } from '../lib/history'
@@ -249,6 +249,22 @@ export default function Dashboard({ logs, setPage }) {
     const t = setTimeout(() => setToast(null), 4000)
     return () => clearTimeout(t)
   }, [toast])
+
+  // 📅 Resumen de la semana: % del camino cada día y motivos de ❌ más repetidos
+  const weekDays = Array.from({ length: 7 }, (_, i) => shiftDate(today, i - 6))
+  const week = histReady ? weekDays.map(d => {
+    const due = visibleIds.filter(id => !(since[id] && d < since[id]) && isScheduled(config, id, d) && marksFor(config, d)[id]?.s !== 'skipped')
+    const n = due.filter(id => hctx.isDone(id, d)).length
+    return { date: d, pct: due.length ? Math.round((n / due.length) * 100) : null }
+  }) : null
+  const reasonCount = {}
+  weekDays.forEach(d => Object.values(marksFor(config, d)).forEach(m => {
+    const why = m.s === 'missed' && m.why?.trim()
+    if (why) { const k = why.toLowerCase(); reasonCount[k] = { text: why, n: (reasonCount[k]?.n || 0) + 1 } }
+  }))
+  const reasons = Object.values(reasonCount).sort((a, b) => b.n - a.n).slice(0, 3)
+  const [weekSeen, setWeekSeen] = useState(() => { try { return localStorage.getItem('fwd_week_seen') } catch { return null } })
+  const showWeekBanner = !isPast && weekdayOf(today) === 6 && weekSeen !== today
 
   // ¡Día completado! (una vez al día, al llegar al trofeo)
   const dayWin = histReady && path.stops.some(st => !st.skipped) && path.stops.filter(st => !st.skipped).every(st => st.done)
@@ -540,6 +556,16 @@ export default function Dashboard({ logs, setPage }) {
         <DayBar day={day} today={today} userId={user.id} config={config}
           habitIds={habits.filter(h => !(config.hidden || []).includes(h.id)).map(h => h.id)}
           onChange={d => { setViewDate(d); setStopSheet(null); setInlineLink(null); setDraft(null) }} />
+        {showWeekBanner && (
+          <button onClick={() => { setShowStats(true); setWeekSeen(today); try { localStorage.setItem('fwd_week_seen', today) } catch { /* sin almacenamiento */ } }}
+            className="w-full bg-violet-50 border border-violet-100 rounded-2xl px-4 py-3 flex items-center gap-3 text-left active:bg-violet-100">
+            <span className="text-2xl">📊</span>
+            <span className="flex-1">
+              <span className="block text-sm font-black text-violet-800">Tu resumen de la semana está listo</span>
+              <span className="block text-xs font-semibold text-violet-600">Mira cómo te ha ido estos 7 días</span>
+            </span>
+          </button>
+        )}
         {hasPrayerStops && (prayer.status === 'noloc' || prayer.status === 'error') && (
           <div className="bg-teal-50 border border-teal-100 rounded-2xl px-4 py-2.5 flex items-center gap-3">
             <p className="flex-1 text-xs font-semibold text-teal-800">
@@ -657,6 +683,8 @@ export default function Dashboard({ logs, setPage }) {
           stops={items}
           habits={habits}
           today={today}
+          week={week}
+          reasons={reasons}
           onClose={() => setShowStats(false)}/>
       )}
 
