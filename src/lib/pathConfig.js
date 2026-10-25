@@ -170,6 +170,15 @@ export function withDayEntry(map, date, value, keep = 45) {
   const days = Object.keys(all).sort().slice(-keep)
   return Object.fromEntries(days.map(k => [k, all[k]]))
 }
+// Temporizador de una parada: config.timers[id] en minutos (con decimales para los segundos,
+// p. ej. 1.5 = 1 min 30 s). Texto corto: "7 min", "1 min 30 s", "45 s".
+export function timerSeconds(minutes) { return Math.round((minutes || 0) * 60) }
+export function fmtTimer(minutes) {
+  const t = timerSeconds(minutes), m = Math.floor(t / 60), s = t % 60
+  if (!m) return `${s} s`
+  return s ? `${m} min ${s} s` : `${m} min`
+}
+
 // Parte del día de cada parada: config.parts[id] = 'm' | 't' | 'n'
 export const DAY_PARTS = { m: '🌅 Mañana', t: '☀️ Tarde', n: '🌙 Noche' }
 

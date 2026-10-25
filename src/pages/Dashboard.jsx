@@ -659,7 +659,7 @@ export default function Dashboard({ logs, setPage }) {
           item={items.find(i => i.id === timerSheet)}
           minutes={config.timers?.[timerSheet] || 10}
           endAt={stopTimer?.id === timerSheet ? stopTimer.endAt : null}
-          onStart={() => saveTimer({ id: timerSheet, endAt: Date.now() + (config.timers?.[timerSheet] || 10) * 60000, date: today })}
+          onStart={() => saveTimer({ id: timerSheet, endAt: Date.now() + Math.round((config.timers?.[timerSheet] || 10) * 60) * 1000, date: today })}
           onCancel={() => saveTimer(null)}
           onClose={() => setTimerSheet(null)}/>
       )}

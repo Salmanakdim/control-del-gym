@@ -4,7 +4,7 @@ import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from 
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import Flowy from './Flowy'
-import { STOP_COLORS, DAY_PARTS } from '../lib/pathConfig'
+import { STOP_COLORS, DAY_PARTS, fmtTimer } from '../lib/pathConfig'
 import { visionForToday } from '../lib/vision'
 
 // Camino al éxito estilo Duolingo: se empieza abajo y se sube hasta el trofeo.
@@ -340,7 +340,7 @@ function StopNode({ item, colors, isCurrent, x, mood, flowyLvl, edit, menuOpen, 
               )}
               {item.timer > 0 && !item.done && (
                 <button onClick={onTimer} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-700 active:bg-slate-50">
-                  <Timer size={15} className="text-violet-500" /> Temporizador · {item.timer} min
+                  <Timer size={15} className="text-violet-500" /> Temporizador · {fmtTimer(item.timer)}
                 </button>
               )}
               {!item.skipped && (

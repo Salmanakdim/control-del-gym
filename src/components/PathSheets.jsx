@@ -3,7 +3,7 @@ import { X, Play, Check, RotateCcw, Plus, Minus, ArrowLeft, Shuffle, Eye, EyeOff
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { PATH_LINKS, newId, localDate, WEEKDAYS, DAY_PARTS } from '../lib/pathConfig'
+import { PATH_LINKS, newId, localDate, WEEKDAYS, DAY_PARTS, fmtTimer, timerSeconds } from '../lib/pathConfig'
 import { stopSince } from '../lib/history'
 import { supabase } from '../lib/supabase'
 import Flowy from './Flowy'
@@ -156,8 +156,8 @@ export function TimerSheet({ item, minutes, endAt, onStart, onCancel, onClose })
     const t = setInterval(() => setNow(Date.now()), 500)
     return () => clearInterval(t)
   }, [endAt])
-  const left  = endAt ? Math.max(0, Math.ceil((endAt - now) / 1000)) : minutes * 60
-  const total = minutes * 60
+  const total = timerSeconds(minutes)
+  const left  = endAt ? Math.max(0, Math.ceil((endAt - now) / 1000)) : total
   return (
     <Sheet onClose={onClose}>
       <div className="flex flex-col items-center text-center">
@@ -174,7 +174,7 @@ export function TimerSheet({ item, minutes, endAt, onStart, onCancel, onClose })
         <div className="w-full mt-6 space-y-4">
           {endAt
             ? <BigButton color="grey" onClick={onCancel}>Parar temporizador</BigButton>
-            : <BigButton color="blue" onClick={onStart}><Play size={16} fill="white" /> Empezar · {minutes} min</BigButton>}
+            : <BigButton color="blue" onClick={onStart}><Play size={16} fill="white" /> Empezar · {fmtTimer(minutes)}</BigButton>}
           <p className="text-xs text-slate-400">Al terminar, la parada se marca como hecha. Puedes cerrar esta ventana: sigue contando.</p>
         </div>
       </div>
@@ -371,19 +371,30 @@ function OrderRow({ node, setLink, onEdit, onHide, onDelete, rewards, chestRewar
                     </button>
                   ))}
                 </div>
-                {/* Minutos a medida (1–240) */}
-                <div className="flex items-center gap-2 mt-1.5">
-                  <span className="text-[11px] font-bold text-slate-500">Otro:</span>
-                  <button onClick={() => onTimer(node.id, Math.max(0, (timer || 0) - 1))} aria-label="Un minuto menos"
-                    className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 flex items-center justify-center"><Minus size={14} /></button>
-                  <input type="number" inputMode="numeric" min="0" max="240" value={timer || ''} placeholder="min" aria-label="Minutos del temporizador"
-                    onChange={e => onTimer(node.id, Math.min(240, Math.max(0, parseInt(e.target.value, 10) || 0)))}
-                    className={`w-16 text-center rounded-lg py-1.5 text-sm font-black border focus:outline-none focus:ring-2 focus:ring-violet-400
-                      ${timer && ![5, 10, 15, 20, 30].includes(timer) ? 'bg-violet-600 text-white border-violet-600' : 'bg-white border-slate-200 text-slate-700'}`} />
-                  <button onClick={() => onTimer(node.id, Math.min(240, (timer || 0) + 1))} aria-label="Un minuto más"
-                    className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 flex items-center justify-center"><Plus size={14} /></button>
-                  <span className="text-[11px] font-bold text-slate-400">min</span>
-                </div>
+                {/* Tiempo a medida: minutos (0–240) y segundos (0–59) */}
+                {(() => {
+                  const total = timerSeconds(timer)
+                  const mm = Math.floor(total / 60), ss = total % 60
+                  const custom = total > 0 && ![5, 10, 15, 20, 30].includes(timer)
+                  const setTime = (m, s) => onTimer(node.id, Math.min(240 * 60, Math.max(0, m * 60 + s)) / 60)
+                  const field = `w-14 text-center rounded-lg py-1.5 text-sm font-black border focus:outline-none focus:ring-2 focus:ring-violet-400 ${custom ? 'bg-violet-600 text-white border-violet-600' : 'bg-white border-slate-200 text-slate-700'}`
+                  const step = 'w-7 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 flex items-center justify-center'
+                  return (
+                    <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                      <span className="text-[11px] font-bold text-slate-500 mr-1">Otro:</span>
+                      <button onClick={() => setTime(mm - 1, ss)} aria-label="Un minuto menos" className={step}><Minus size={13} /></button>
+                      <input type="number" inputMode="numeric" min="0" max="240" value={total ? mm : ''} placeholder="0" aria-label="Minutos del temporizador"
+                        onChange={e => setTime(Math.min(240, Math.max(0, parseInt(e.target.value, 10) || 0)), ss)} className={field} />
+                      <button onClick={() => setTime(mm + 1, ss)} aria-label="Un minuto más" className={step}><Plus size={13} /></button>
+                      <span className="text-[11px] font-bold text-slate-400 mr-2">min</span>
+                      <button onClick={() => setTime(mm, Math.max(0, ss - 5))} aria-label="5 segundos menos" className={step}><Minus size={13} /></button>
+                      <input type="number" inputMode="numeric" min="0" max="59" value={total ? ss : ''} placeholder="0" aria-label="Segundos del temporizador"
+                        onChange={e => setTime(mm, Math.min(59, Math.max(0, parseInt(e.target.value, 10) || 0)))} className={field} />
+                      <button onClick={() => setTime(mm, Math.min(59, ss + 5))} aria-label="5 segundos más" className={step}><Plus size={13} /></button>
+                      <span className="text-[11px] font-bold text-slate-400">s</span>
+                    </div>
+                  )
+                })()}
               </div>
             )}
             <div className="mb-2">
