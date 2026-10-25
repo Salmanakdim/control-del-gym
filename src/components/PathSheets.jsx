@@ -371,6 +371,19 @@ function OrderRow({ node, setLink, onEdit, onHide, onDelete, rewards, chestRewar
                     </button>
                   ))}
                 </div>
+                {/* Minutos a medida (1–240) */}
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className="text-[11px] font-bold text-slate-500">Otro:</span>
+                  <button onClick={() => onTimer(node.id, Math.max(0, (timer || 0) - 1))} aria-label="Un minuto menos"
+                    className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 flex items-center justify-center"><Minus size={14} /></button>
+                  <input type="number" inputMode="numeric" min="0" max="240" value={timer || ''} placeholder="min" aria-label="Minutos del temporizador"
+                    onChange={e => onTimer(node.id, Math.min(240, Math.max(0, parseInt(e.target.value, 10) || 0)))}
+                    className={`w-16 text-center rounded-lg py-1.5 text-sm font-black border focus:outline-none focus:ring-2 focus:ring-violet-400
+                      ${timer && ![5, 10, 15, 20, 30].includes(timer) ? 'bg-violet-600 text-white border-violet-600' : 'bg-white border-slate-200 text-slate-700'}`} />
+                  <button onClick={() => onTimer(node.id, Math.min(240, (timer || 0) + 1))} aria-label="Un minuto más"
+                    className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 flex items-center justify-center"><Plus size={14} /></button>
+                  <span className="text-[11px] font-bold text-slate-400">min</span>
+                </div>
               </div>
             )}
             <div className="mb-2">
