@@ -408,12 +408,17 @@ function OrderRow({ node, setLink, onEdit, onHide, onDelete, rewards, chestRewar
                 ))}
               </div>
             </div>
-            <p className="text-[11px] font-bold text-slate-500 mb-1">Días que toca (sin marcar = todos)</p>
+            <p className="text-[11px] font-bold text-slate-500 mb-1">Días que toca (desmarca los que no)</p>
             <div className="grid grid-cols-7 gap-1">
               {WEEKDAYS.map((w, d) => {
-                const on = days?.includes(d)
+                // Sin días guardados = todos; siempre queda al menos uno marcado
+                const current = days?.length ? days : [0, 1, 2, 3, 4, 5, 6]
+                const on = current.includes(d)
                 return (
-                  <button key={w} onClick={() => onDays(node.id, on ? days.filter(x => x !== d) : [...(days || []), d].sort())}
+                  <button key={w} onClick={() => {
+                    const next = on ? current.filter(x => x !== d) : [...current, d].sort()
+                    if (next.length) onDays(node.id, next)
+                  }}
                     className={`py-2 rounded-lg text-xs font-black ${on ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-400'}`}>
                     {w}
                   </button>
