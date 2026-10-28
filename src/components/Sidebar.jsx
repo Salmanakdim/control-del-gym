@@ -1,4 +1,4 @@
-import { LayoutDashboard, Dumbbell, TrendingUp, Menu, X, BookOpen, LogOut, CheckSquare, CalendarDays, Flame, Timer, FileText, Wind, Moon, Scale, Sparkles, Target, Settings, ClipboardCheck } from 'lucide-react'
+import { LayoutDashboard, Dumbbell, TrendingUp, Menu, X, BookOpen, LogOut, CheckSquare, CalendarDays, Flame, Timer, FileText, Wind, Moon, Scale, Sparkles, Target, Settings, ClipboardCheck, Clapperboard } from 'lucide-react'
 import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { usePomodoro, fmtPomTime } from '../contexts/PomodoroContext'
@@ -23,6 +23,8 @@ const NAV = [
   { id: 'exercises',  label: 'Ejercicios',      Icon: BookOpen },
   { id: 'progress',   label: 'Progreso',        Icon: TrendingUp },
   { id: 'sueno',      label: 'Sueño',           Icon: Moon },
+  { section: 'Herramientas' },
+  { id: 'flow',       label: 'Flow',            Icon: Clapperboard },
 ]
 
 const MODE_COLORS = { work: '#2563eb', break: '#16a34a', longbreak: '#7c3aed' }

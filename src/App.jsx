@@ -22,6 +22,7 @@ import Afirmaciones from './pages/Afirmaciones'
 import Metas from './pages/Metas'
 import Ajustes from './pages/Ajustes'
 import Revision from './pages/Revision'
+import FlowRemote from './pages/FlowRemote'
 import Auth from './pages/Auth'
 import { Play, Pause } from 'lucide-react'
 
@@ -125,7 +126,7 @@ function AppInner() {
   if (user === null) return <Auth />
 
   const isTasks    = page === 'tasks'
-  const isPersonal = ['habits', 'pomodoro', 'notes', 'respiracion', 'sueno', 'cuerpo', 'afirmaciones', 'metas', 'ajustes', 'revision'].includes(page)
+  const isPersonal = ['habits', 'pomodoro', 'notes', 'respiracion', 'sueno', 'cuerpo', 'afirmaciones', 'metas', 'ajustes', 'revision', 'flow'].includes(page)
 
   const showPomBar = pom.running && page !== 'pomodoro'
 
@@ -153,6 +154,7 @@ function AppInner() {
                 {page === 'metas'         && <Metas />}
                 {page === 'ajustes'       && <Ajustes />}
                 {page === 'revision'      && <Revision />}
+                {page === 'flow'          && <FlowRemote />}
               </>
             ) : gymLoading ? (
               <div className="flex items-center justify-center h-64">
