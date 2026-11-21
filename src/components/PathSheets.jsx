@@ -17,8 +17,9 @@ import Notes from '../pages/Notes'
 import Pomodoro from '../pages/Pomodoro'
 import Revision from '../pages/Revision'
 import Cuerpo from '../pages/Cuerpo'
+import Coran from '../pages/Coran'
 
-const INLINE_PAGES = { metas: Metas, afirmaciones: Afirmaciones, respiracion: Respiracion, sueno: Sueno, notes: Notes, pomodoro: Pomodoro, revision: Revision, cuerpo: Cuerpo }
+const INLINE_PAGES = { metas: Metas, afirmaciones: Afirmaciones, respiracion: Respiracion, sueno: Sueno, notes: Notes, pomodoro: Pomodoro, revision: Revision, cuerpo: Cuerpo, coran: Coran }
 
 // ── Panel que sube desde abajo ─────────────────────────────────────
 function Sheet({ onClose, children }) {

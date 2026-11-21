@@ -5,6 +5,7 @@ import {
   Check, LogOut, Bell, Pencil, X,
   Crown, Shield, Mail, Star, Trash2, ChevronRight
 } from 'lucide-react'
+import { useQuranSettings, TRANSLATIONS, RECITERS } from '../lib/quran'
 import { getDailyNotifPrefs, saveDailyNotifPrefs, scheduleDailyNotifications, cancelDailyNotifications } from '../lib/notifications'
 
 const SUPPORT_EMAIL = 'soporte@flowlyday.com'
@@ -54,6 +55,7 @@ function RowLink({ icon: Icon, label, desc, onClick, danger }) {
 
 export default function Ajustes() {
   const { user, signOut } = useAuth()
+  const [quran, saveQuran] = useQuranSettings()
 
   const initial = (user?.user_metadata?.name || user?.email || '?').charAt(0).toUpperCase()
 
@@ -192,6 +194,37 @@ export default function Ajustes() {
             className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl text-sm disabled:opacity-40 active:bg-blue-700 flex items-center justify-center gap-2">
             {notifSaved ? <><Check size={15} strokeWidth={3}/> Guardado</> : savingNotif ? 'Guardando...' : 'Guardar notificaciones'}
           </button>
+        </div>
+      </div>
+
+      {/* ── Corán ── */}
+      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+        <SectionLabel>📖 Corán</SectionLabel>
+        <div className="px-4 pb-4 space-y-3">
+          <label className="block">
+            <span className="text-sm font-semibold text-slate-700">Traducción</span>
+            <select value={quran.translation} onChange={e => saveQuran({ translation: e.target.value })}
+              className="mt-1.5 w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+              {TRANSLATIONS.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-sm font-semibold text-slate-700">Recitador del audio</span>
+            <select value={quran.reciter} onChange={e => saveQuran({ reciter: e.target.value })}
+              className="mt-1.5 w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+              {RECITERS.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+            </select>
+          </label>
+          <div>
+            <p className="text-sm font-semibold text-slate-700">Objetivo: páginas al día</p>
+            <div className="grid grid-cols-6 gap-1.5 mt-1.5">
+              {[1, 2, 3, 4, 5, 10].map(n => (
+                <button key={n} onClick={() => saveQuran({ goal: n })}
+                  className={`py-2 rounded-xl text-sm font-black ${quran.goal === n ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>{n}</button>
+              ))}
+            </div>
+            <p className="text-xs text-slate-400 mt-1.5">Para leer, añade una parada (por ejemplo "📖 Corán") y elige "Corán" como sitio donde se hace.</p>
+          </div>
         </div>
       </div>
 

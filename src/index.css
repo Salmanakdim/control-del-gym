@@ -4,6 +4,7 @@
 
 * { box-sizing: border-box; }
 body { margin: 0; font-family: 'Inter', system-ui, sans-serif; background: #f1f5f9; }
+.quran-text { font-family: 'Amiri Quran', 'Amiri', 'Scheherazade New', 'Traditional Arabic', serif; }
 #root { width: 100%; min-height: 100vh; }
 
 /* ── Task completion burst ── */
