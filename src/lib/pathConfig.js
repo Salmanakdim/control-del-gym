@@ -18,6 +18,7 @@ export const PATH_LINKS = {
   revision:     { label: 'Revisión diaria',  emoji: '📋', inline: true },
   cuerpo:       { label: 'Mi cuerpo',        emoji: '⚖️', inline: true },
   coran:        { label: 'Corán',            emoji: '📖', inline: true },
+  adhkar:       { label: 'Adhkar',           emoji: '📿', inline: true },
   log:          { label: 'Entrenamiento',    emoji: '🏋️' },
   tasks:        { label: 'Tareas',           emoji: '✅' },
   calendar:     { label: 'Calendario',       emoji: '📅' },
@@ -27,6 +28,7 @@ export const PATH_LINKS = {
 export function guessLink(name = '') {
   const n = name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
   if (n.includes('coran') || n.includes('quran') || n.includes('quraan')) return 'coran'
+  if (['adhkar', 'adkhar', 'azkar', 'athkar', 'dhikr', 'dikr'].some(w => n.includes(w))) return 'adhkar'
   if (n.includes('meta')) return 'metas'
   if (n.includes('afirm')) return 'afirmaciones'
   if (n.includes('medit') || n.includes('respir')) return 'respiracion'

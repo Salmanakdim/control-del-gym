@@ -18,8 +18,9 @@ import Pomodoro from '../pages/Pomodoro'
 import Revision from '../pages/Revision'
 import Cuerpo from '../pages/Cuerpo'
 import Coran from '../pages/Coran'
+import Adhkar from '../pages/Adhkar'
 
-const INLINE_PAGES = { metas: Metas, afirmaciones: Afirmaciones, respiracion: Respiracion, sueno: Sueno, notes: Notes, pomodoro: Pomodoro, revision: Revision, cuerpo: Cuerpo, coran: Coran }
+const INLINE_PAGES = { metas: Metas, afirmaciones: Afirmaciones, respiracion: Respiracion, sueno: Sueno, notes: Notes, pomodoro: Pomodoro, revision: Revision, cuerpo: Cuerpo, coran: Coran, adhkar: Adhkar }
 
 // ── Panel que sube desde abajo ─────────────────────────────────────
 function Sheet({ onClose, children }) {
@@ -133,7 +134,7 @@ export function InlinePage({ link, item, onDone, onClose }) {
         </div>
       </div>
       <div className="px-4 pt-4 pb-36 max-w-5xl mx-auto">
-        {Page && <Page />}
+        {Page && <Page item={item} />}
       </div>
       <div className="fixed bottom-0 inset-x-0 px-4 pt-3 bg-gradient-to-t from-slate-100 via-slate-100 to-transparent"
         style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
