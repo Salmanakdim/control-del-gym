@@ -12,6 +12,7 @@ import { ACHIEVEMENTS, countOpenedChests } from '../lib/achievements'
 import { AchievementsSheet, DayCompleteOverlay, MedalToast } from '../components/Motivation'
 import { VISION_IMAGES, uploadVisionImage, deleteVisionImage } from '../lib/vision'
 import { buildPath } from '../lib/pathModel'
+import FocusScreen from '../components/FocusScreen'
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -57,7 +58,7 @@ function fmtSleep(mins) {
 }
 
 // ── Main ───────────────────────────────────────────────────────────
-export default function Dashboard({ logs, setPage }) {
+export default function Dashboard({ logs, setPage, focusSignal = 0 }) {
   const { user } = useAuth()
   const { pom } = usePomodoro()
 
@@ -309,6 +310,31 @@ export default function Dashboard({ logs, setPage }) {
   }, [stopTimer])
   const timerLeft = stopTimer ? Math.max(0, Math.ceil((stopTimer.endAt - clock) / 1000)) : null
   const items = path.stops
+
+  // 🎯 Pantalla de concentración: se abre al tocar un recordatorio (App sube focusSignal)
+  const [showFocus, setShowFocus] = useState(false)
+  const [seenSignal, setSeenSignal] = useState(0)
+  if (focusSignal !== seenSignal) {
+    setSeenSignal(focusSignal)
+    if (focusSignal) { setViewDate(null); setShowFocus(true) }
+  }
+
+  // Copia del camino para los recordatorios: con ella el servidor escribe "Vas por 4 de 8…
+  // Siguiente: …". Se guarda solo si los recordatorios ya existen (update, no insert).
+  const reminderPath = {
+    dayStart: config.dayStart ?? 0,
+    stops: buildPath({ config, habits, todayLogs: new Set(), focusText: '', focusDone: false, today, allDays: true }).stops
+      .map(st => ({ id: st.id, icon: st.icon, label: st.kind === 'focus' ? 'Foco del día' : st.label, kind: st.kind, days: config.weekdays?.[st.id] || null })),
+    skipped: { date: today, ids: Object.entries(marksFor(config, today)).filter(([, m]) => m.s === 'skipped').map(([id]) => id) },
+  }
+  const reminderKey = JSON.stringify(reminderPath)
+  useEffect(() => {
+    if (loading) return
+    const t = setTimeout(() => {
+      supabase.from('focus_reminders').update({ path: JSON.parse(reminderKey) }).eq('user_id', user.id).then(() => {}, () => {})
+    }, 2000)
+    return () => clearTimeout(t)
+  }, [reminderKey, loading])
 
   // Orden completo, con las paradas ocultas o que hoy no tocan en su sitio. Al reordenar
   // lo visible, las demás se quedan donde estaban (si no, al volver salían arriba del todo).
@@ -715,8 +741,21 @@ export default function Dashboard({ logs, setPage }) {
           visionList={sDraft.config.vision || VISION_IMAGES}
           onAddVision={sAddVision}
           onRemoveVision={sRemoveVision}
+          reminderPath={reminderPath}
           onSaveAll={saveSettings}
           onClose={closeSettings}/>
+      )}
+
+      {showFocus && !loading && (
+        <FocusScreen
+          stops={items}
+          colorsOf={colorsOf}
+          visionImages={config.vision || VISION_IMAGES}
+          onDone={st => {
+            if (st.canCheck === false) { setShowFocus(false); setStopSheet(st.id) }
+            else toggleItem(st.id)
+          }}
+          onClose={() => setShowFocus(false)}/>
       )}
     </>
   )

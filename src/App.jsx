@@ -48,6 +48,19 @@ function AppInner() {
   const { user } = useAuth()
   const { pom, toggle } = usePomodoro()
   const [page, setPage] = useState('dashboard')
+  // Recordatorio tocado: abre la pantalla de concentración en el inicio.
+  // Llega como ?focus=1 (app cerrada) o como mensaje del service worker (app abierta).
+  const [focusSignal, setFocusSignal] = useState(() => (new URLSearchParams(location.search).has('focus') ? 1 : 0))
+  useEffect(() => {
+    if (location.search.includes('focus')) history.replaceState(null, '', location.pathname)
+    const onMsg = e => {
+      if (e.data?.type !== 'focus') return
+      setPage('dashboard')
+      setFocusSignal(n => n + 1)
+    }
+    navigator.serviceWorker?.addEventListener('message', onMsg)
+    return () => navigator.serviceWorker?.removeEventListener('message', onMsg)
+  }, [])
   const [tasksInitialView, setTasksInitialView] = useState('home')
   const [routines, setRoutines] = useState([])
   const [logs, setLogs] = useState([])
@@ -162,7 +175,7 @@ function AppInner() {
               </div>
             ) : (
               <>
-                {page === 'dashboard' && <Dashboard logs={logs} routines={routines} setPage={navigate} onStartRoutine={startRoutineFromDashboard} />}
+                {page === 'dashboard' && <Dashboard logs={logs} routines={routines} setPage={navigate} onStartRoutine={startRoutineFromDashboard} focusSignal={focusSignal} />}
                 {page === 'calendar'  && <Calendar logs={logs} />}
                 {page === 'routines'  && <Routines routines={routines} onSaveRoutine={saveRoutine} onDeleteRoutine={deleteRoutine} />}
                 {page === 'log'       && <WorkoutLog routines={routines} logs={logs} onAddLog={addLog} setPage={setPage} startRoutineId={gymStartRoutineId} onStartRoutineConsumed={() => setGymStartRoutineId(null)} onSaveRoutine={saveRoutine} onDeleteRoutine={deleteRoutine} />}

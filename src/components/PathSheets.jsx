@@ -6,6 +6,8 @@ import { CSS } from '@dnd-kit/utilities'
 import { PATH_LINKS, newId, localDate, WEEKDAYS, DAY_PARTS, fmtTimer, timerSeconds } from '../lib/pathConfig'
 import { stopSince } from '../lib/history'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
+import { enablePush, sendTestPush } from '../lib/push'
 import Flowy from './Flowy'
 import Metas from '../pages/Metas'
 import Afirmaciones from '../pages/Afirmaciones'
@@ -295,6 +297,131 @@ function Fold({ title, summary, open, onToggle, children }) {
   )
 }
 
+// ── 🎯 Recordatorios de concentración (notificaciones push) ─────────
+// Se guardan al momento en su propia tabla, aparte del borrador de Personalizar.
+const EVERY_OPTIONS = [15, 30, 45, 60, 90, 120]
+const fmtEvery = m => (m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60}` : ''}`)
+const toTime = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+const fromTime = t => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + (m || 0) }
+const PUSH_ERRORS = {
+  'ios-browser': 'En iPhone solo funciona abriendo Flowlyday desde su icono de la pantalla de inicio (Compartir → Añadir a pantalla de inicio). Ábrela desde ahí y actívalo.',
+  unsupported: 'Este navegador no permite notificaciones.',
+  denied: 'Las notificaciones están bloqueadas. Actívalas en Ajustes del móvil → Notificaciones → Flowlyday y vuelve a intentarlo.',
+  'no-table': 'Falta preparar Supabase: ejecuta supabase_focus_reminders.sql.',
+  save: 'No se pudo guardar. Inténtalo otra vez.',
+  'no-function': 'Falta subir a Supabase la función focus-reminders.',
+}
+
+function ReminderFold({ open, onToggle, pathSnapshot }) {
+  const { user } = useAuth()
+  const [r, setR] = useState(null)          // lo guardado
+  const [form, setForm] = useState(null)    // lo que se está editando
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState(null)      // { ok, text }
+
+  useEffect(() => {
+    const blank = { enabled: false, every_min: 60, start_min: 540, end_min: 1320, days: [0, 1, 2, 3, 4, 5, 6] }
+    supabase.from('focus_reminders').select('enabled, every_min, start_min, end_min, days').eq('user_id', user.id).maybeSingle()
+      .then(({ data }) => { setR(data || blank); setForm(data || blank) }, () => { setR(blank); setForm(blank) })
+  }, [user.id])
+
+  const set = changes => { setForm(f => ({ ...f, ...changes })); setMsg(null) }
+  const dirty = r && form && JSON.stringify(r) !== JSON.stringify(form)
+
+  async function save(enabled) {
+    setBusy(true); setMsg(null)
+    if (enabled) {
+      const problem = await enablePush(user.id).catch(() => 'save')
+      if (problem) { setBusy(false); setMsg({ ok: false, text: PUSH_ERRORS[problem] }); return }
+    }
+    const next = { ...form, enabled, days: form.days.length ? form.days : [0, 1, 2, 3, 4, 5, 6] }
+    const { error } = await supabase.from('focus_reminders').upsert({
+      user_id: user.id, ...next,
+      tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Madrid',
+      path: pathSnapshot, updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' })
+    setBusy(false)
+    if (error) { setMsg({ ok: false, text: PUSH_ERRORS[/relation|does not exist|schema cache/i.test(error.message) ? 'no-table' : 'save'] }); return }
+    setR(next); setForm(next)
+    setMsg({ ok: true, text: enabled ? `Listo: te avisaré cada ${fmtEvery(next.every_min)}, de ${toTime(next.start_min)} a ${toTime(next.end_min)}.` : 'Recordatorios desactivados.' })
+  }
+
+  async function test() {
+    setBusy(true); setMsg(null)
+    const problem = await enablePush(user.id).catch(() => 'save')
+    if (problem) { setBusy(false); setMsg({ ok: false, text: PUSH_ERRORS[problem] }); return }
+    const res = await sendTestPush()
+    setBusy(false)
+    setMsg(res.error ? { ok: false, text: PUSH_ERRORS[res.error] }
+      : res.sent ? { ok: true, text: 'Enviado. Te llegará en unos segundos.' }
+      : { ok: false, text: 'No encontré ningún dispositivo para avisar. Inténtalo otra vez.' })
+  }
+
+  const summary = !r ? '…' : r.enabled ? `Cada ${fmtEvery(r.every_min)} · ${toTime(r.start_min)}–${toTime(r.end_min)}` : 'Desactivados'
+  return (
+    <Fold title="🎯 Recordatorios de concentración" summary={summary} open={open} onToggle={onToggle}>
+      {!form ? (
+        <div className="flex justify-center py-4"><div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
+      ) : (
+        <>
+          <p className="text-xs text-slate-500 mt-1 mb-3">
+            Te llega un aviso aunque la app esté cerrada, con un mensaje para concentrarte y por dónde vas en el camino. Si ya lo has completado todo, no avisa.
+          </p>
+
+          <p className="text-[11px] font-black text-slate-400 uppercase tracking-wide">Cada cuánto</p>
+          <div className="grid grid-cols-6 gap-1.5 mt-1.5">
+            {EVERY_OPTIONS.map(m => (
+              <button key={m} onClick={() => set({ every_min: m })}
+                className={`py-2 rounded-xl text-[11px] font-black ${form.every_min === m ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                {fmtEvery(m)}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 mt-3">
+            {[['Desde', 'start_min'], ['Hasta', 'end_min']].map(([l, k]) => (
+              <label key={k} className="block">
+                <span className="text-[11px] font-black text-slate-400 uppercase tracking-wide">{l}</span>
+                <input type="time" value={toTime(form[k])} onChange={e => set({ [k]: fromTime(e.target.value) })}
+                  className="mt-1.5 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </label>
+            ))}
+          </div>
+          {form.end_min <= form.start_min && <p className="mt-1.5 text-xs font-semibold text-red-500">"Hasta" tiene que ser más tarde que "Desde".</p>}
+
+          <p className="text-[11px] font-black text-slate-400 uppercase tracking-wide mt-3">Días</p>
+          <div className="grid grid-cols-7 gap-1.5 mt-1.5">
+            {WEEKDAYS.map((w, d) => {
+              const on = form.days.includes(d)
+              return (
+                <button key={d} onClick={() => set({ days: on ? form.days.filter(x => x !== d) : [...form.days, d].sort() })}
+                  className={`py-2 rounded-xl text-xs font-black ${on ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'}`}>{w}</button>
+              )
+            })}
+          </div>
+
+          <div className="flex gap-2 mt-4">
+            {(!r.enabled || dirty) && (
+              <button onClick={() => save(true)} disabled={busy || form.end_min <= form.start_min || !form.days.length}
+                className="flex-1 py-3 rounded-2xl text-sm font-black text-white bg-[#58cc02] disabled:opacity-40" style={{ boxShadow: '0 4px 0 #46a302' }}>
+                {r.enabled ? 'Guardar' : '🔔 Activar recordatorios'}
+              </button>
+            )}
+            {r.enabled && !dirty && (
+              <button onClick={() => save(false)} disabled={busy}
+                className="flex-1 py-3 rounded-2xl text-sm font-black text-slate-500 bg-slate-100 disabled:opacity-40">Desactivar</button>
+            )}
+            <button onClick={test} disabled={busy}
+              className="px-4 py-3 rounded-2xl text-sm font-black text-blue-600 bg-blue-50 disabled:opacity-40">Probar</button>
+          </div>
+          {busy && <p className="mt-2 text-xs font-semibold text-slate-400">Un momento…</p>}
+          {msg && <p className={`mt-2 text-xs font-semibold ${msg.ok ? 'text-[#46a302]' : 'text-red-500'}`}>{msg.text}</p>}
+        </>
+      )}
+    </Fold>
+  )
+}
+
 // Fila de la lista "Orden y lugar": se arrastra desde el asa ⠿; el lápiz abre el editor
 function OrderRow({ node, setLink, onEdit, onHide, onDelete, rewards, chestReward, onChestReward, days, onDays, timer, onTimer, part, onPart }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: node.id })
@@ -463,7 +590,7 @@ function OrderRow({ node, setLink, onEdit, onHide, onDelete, rewards, chestRewar
   )
 }
 
-export function PathSettingsSheet({ config, save, sequence, setLink, onSaveOrder, onAddChest, onEditStop, onDeleteStop, onAddPrayers, hasPrayers, dirty, onSaveAll, onClose, visionList, onAddVision, onRemoveVision }) {
+export function PathSettingsSheet({ config, save, sequence, setLink, onSaveOrder, onAddChest, onEditStop, onDeleteStop, onAddPrayers, hasPrayers, dirty, onSaveAll, onClose, visionList, onAddVision, onRemoveVision, reminderPath }) {
   // Se ve como en el camino (arriba = final del camino)
   const listIds  = [...sequence].reverse().map(n => n.id)
   const [askDiscard, setAskDiscard] = useState(false)
@@ -522,6 +649,9 @@ export function PathSettingsSheet({ config, save, sequence, setLink, onSaveOrder
     <Sheet onClose={tryClose}>
       <h2 className="text-xl font-black text-slate-800">Personalizar camino</h2>
       <p className="text-xs text-slate-500 mt-1">Nada cambia en el camino hasta que pulses Guardar cambios.</p>
+
+      {/* Recordatorios de concentración (se guardan al momento, aparte) */}
+      <ReminderFold open={fold === 'focus'} onToggle={() => setFold(f => (f === 'focus' ? null : 'focus'))} pathSnapshot={reminderPath} />
 
       {/* Hora de inicio del día */}
       <Fold title="🌙 Mi día empieza a las" summary={`${String(config.dayStart ?? 0).padStart(2, '0')}:00`} open={fold === 'day'} onToggle={() => setFold(f => (f === 'day' ? null : 'day'))}>
