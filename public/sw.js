@@ -14,6 +14,8 @@ self.addEventListener('push', e => {
     badge: '/icon-192.png',
     tag: d.tag || 'flowly-focus',
     renotify: true,
+    silent: false,            // con el sonido normal de notificaciones del móvil
+    vibrate: [200, 100, 200], // Android (el iPhone vibra según sus ajustes)
     data: { url: d.url || '/?focus=1' },
   }))
 })

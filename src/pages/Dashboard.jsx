@@ -313,6 +313,7 @@ export default function Dashboard({ logs, setPage, focusSignal = 0 }) {
 
   // 🎯 Pantalla de concentración: se abre al tocar un recordatorio (App sube focusSignal)
   const [showFocus, setShowFocus] = useState(false)
+  const [backToFocus, setBackToFocus] = useState(false)   // al terminar la tarea abierta desde ella, vuelve
   const [seenSignal, setSeenSignal] = useState(0)
   if (focusSignal !== seenSignal) {
     setSeenSignal(focusSignal)
@@ -676,8 +677,8 @@ export default function Dashboard({ logs, setPage, focusSignal = 0 }) {
         <InlinePage
           link={inlineLink}
           item={openItem}
-          onDone={() => { toggleItem(openItem.id); setInlineLink(null); setStopSheet(null) }}
-          onClose={() => { setInlineLink(null); setStopSheet(null) }}/>
+          onDone={() => { toggleItem(openItem.id); setInlineLink(null); setStopSheet(null); if (backToFocus) { setBackToFocus(false); setShowFocus(true) } }}
+          onClose={() => { setInlineLink(null); setStopSheet(null); if (backToFocus) { setBackToFocus(false); setShowFocus(true) } }}/>
       )}
 
       {timerSheet && items.find(i => i.id === timerSheet) && (
@@ -755,6 +756,12 @@ export default function Dashboard({ logs, setPage, focusSignal = 0 }) {
             if (st.canCheck === false) { setShowFocus(false); setStopSheet(st.id) }
             else toggleItem(st.id)
           }}
+          onDo={st => {
+            setShowFocus(false)
+            setBackToFocus(!!PATH_LINKS[linkOf(st.id)]?.inline)   // si lleva a otra sección, no vuelve
+            doNow(st.id)
+          }}
+          doLabel={st => PATH_LINKS[linkOf(st.id)]?.label || null}
           onClose={() => setShowFocus(false)}/>
       )}
     </>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Check } from 'lucide-react'
+import { X, Check, Play } from 'lucide-react'
 import Flowy from './Flowy'
 import { visionForToday } from '../lib/vision'
 
@@ -16,7 +16,8 @@ const PHRASES = [
 ]
 const GOLD = { bg: '#ffc800', shadow: '#e0a800' }
 
-export default function FocusScreen({ stops, colorsOf, visionImages, onDone, onClose }) {
+// doLabel(parada): nombre de la sección de la app donde se hace (Metas, Afirmaciones…) o null
+export default function FocusScreen({ stops, colorsOf, visionImages, onDone, onDo, doLabel, onClose }) {
   const [phrase] = useState(() => PHRASES[Math.floor(Math.random() * PHRASES.length)])
   const [img] = useState(() => {
     const list = visionForToday(visionImages)
@@ -29,6 +30,7 @@ export default function FocusScreen({ stops, colorsOf, visionImages, onDone, onC
   const current = todo.find(st => !st.done) || null
   const pct     = total ? Math.round((done / total) * 100) : 0
   const colors  = current ? colorsOf(current.id) : GOLD
+  const where   = current && current.canDo ? doLabel(current) : null
 
   return (
     <div className="fixed inset-0 z-[60] overflow-hidden flex flex-col sheet-up"
@@ -74,10 +76,20 @@ export default function FocusScreen({ stops, colorsOf, visionImages, onDone, onC
 
         {current ? (
           <div className="space-y-2">
+            {/* Se hace dentro de la app (Metas, Afirmaciones…): se abre ahí y al terminar se marca */}
+            {where && (
+              <button onClick={() => onDo(current)}
+                className="w-full py-4 rounded-2xl bg-white text-lg font-black flex items-center justify-center gap-2 active:translate-y-1 transition-transform"
+                style={{ color: colors.shadow, boxShadow: '0 5px 0 rgba(0,0,0,.18)' }}>
+                <Play size={20} fill="currentColor" /> Hacer ahora · {where}
+              </button>
+            )}
             <button onClick={() => onDone(current)}
-              className="w-full py-4 rounded-2xl bg-white text-lg font-black flex items-center justify-center gap-2 active:translate-y-1 transition-transform"
-              style={{ color: colors.shadow, boxShadow: '0 5px 0 rgba(0,0,0,.18)' }}>
-              <Check size={22} strokeWidth={3} /> {current.canCheck === false ? 'Escribir mi foco' : 'Hecho'}
+              className={where
+                ? 'w-full py-3.5 rounded-2xl bg-white/20 text-white text-base font-black flex items-center justify-center gap-2 active:bg-white/30'
+                : 'w-full py-4 rounded-2xl bg-white text-lg font-black flex items-center justify-center gap-2 active:translate-y-1 transition-transform'}
+              style={where ? undefined : { color: colors.shadow, boxShadow: '0 5px 0 rgba(0,0,0,.18)' }}>
+              <Check size={where ? 19 : 22} strokeWidth={3} /> {current.canCheck === false ? 'Escribir mi foco' : where ? 'Ya está hecho' : 'Hecho'}
             </button>
             <button onClick={onClose} className="w-full py-3 text-white/85 text-sm font-black">Ahora no</button>
           </div>
