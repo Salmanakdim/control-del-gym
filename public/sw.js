@@ -7,17 +7,23 @@ self.addEventListener('activate', e => e.waitUntil(self.clients.claim()))
 self.addEventListener('push', e => {
   let d
   try { d = e.data ? e.data.json() : {} } catch { d = { body: e.data ? e.data.text() : '' } }
-  // iPhone exige mostrar una notificación por cada push recibido
-  e.waitUntil(self.registration.showNotification(d.title || 'Concéntrate 🎯', {
-    body: d.body || 'Abre Flowlyday y sigue con tu camino',
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
-    tag: d.tag || 'flowly-focus',
-    renotify: true,
-    silent: false,            // con el sonido normal de notificaciones del móvil
-    vibrate: [200, 100, 200], // Android (el iPhone vibra según sus ajustes)
-    data: { url: d.url || '/?focus=1' },
-  }))
+  // iPhone exige mostrar una notificación por cada push recibido.
+  // Cada aviso con su propia etiqueta: si reemplaza a otro con la misma, el iPhone
+  // lo muestra sin sonido (Safari ignora `renotify`). Los anteriores se quitan
+  // primero para que no se acumulen.
+  e.waitUntil((async () => {
+    const old = await self.registration.getNotifications()
+    old.forEach(n => n.close())
+    await self.registration.showNotification(d.title || 'Concéntrate 🎯', {
+      body: d.body || 'Abre Flowlyday y sigue con tu camino',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: 'flowly-' + Date.now(),
+      silent: false,            // con el sonido normal de notificaciones del móvil
+      vibrate: [200, 100, 200], // Android (el iPhone vibra según sus ajustes)
+      data: { url: d.url || '/?focus=1' },
+    })
+  })())
 })
 
 // Al tocarla: si la app ya está abierta, se trae delante y abre la pantalla de
