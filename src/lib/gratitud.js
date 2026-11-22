@@ -42,14 +42,27 @@ export function promptOf(level, date = appToday()) {
   return level.prompts[day % level.prompts.length]
 }
 
-export function useGratitudPhotos() {
+// { photos: { nivel: [url] }, captions: { url: 'frase de la foto' } }
+export function useGratitud() {
   const { user } = useAuth()
-  const [photos, setPhotos] = useState(() => user?.user_metadata?.gratitud?.photos || {})
-  function save(next) {
-    setPhotos(next)
-    supabase.auth.updateUser({ data: { gratitud: { photos: next } } })
+  const [g, setG] = useState(() => ({ photos: {}, captions: {}, ...(user?.user_metadata?.gratitud || {}) }))
+  function save(changes) {
+    setG(prev => {
+      const next = { ...prev, ...changes }
+      supabase.auth.updateUser({ data: { gratitud: next } })
+      return next
+    })
   }
-  return [photos, save]
+  return [g, save]
+}
+
+// El recorrido: por cada nivel, su portada, sus fotos y la pantalla para escribir
+export function buildSlides(photos) {
+  return LEVELS.flatMap(l => [
+    { kind: 'title', level: l },
+    ...(photos[l.id] || []).map(url => ({ kind: 'photo', level: l, url })),
+    { kind: 'write', level: l },
+  ])
 }
 
 export async function loadEntries(userId) {

@@ -1,20 +1,27 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
-import { Camera, Plus, X, Shuffle, Check } from 'lucide-react'
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react'
+import { Camera, Plus, X, Shuffle, Check, ChevronRight, Play } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { appToday } from '../lib/pathConfig'
 import { uploadVisionImage, deleteVisionImage } from '../lib/vision'
-import { LEVELS, promptOf, useGratitudPhotos, loadEntries, saveEntry, daysAgo } from '../lib/gratitud'
+import { LEVELS, promptOf, useGratitud, buildSlides, loadEntries, saveEntry, daysAgo } from '../lib/gratitud'
+import MicButton from '../components/MicButton'
 
-// 🤲 Gratitud: tres niveles, cada uno con tus fotos de fondo y lo que escribes hoy.
-// Con los tres escritos, un momento para sentirlo (respirar + Alhamdulillah).
+const noScrollbar = { scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }
+
+// 🤲 Gratitud: tres niveles con tus fotos y lo que escribes hoy. El recorrido se
+// desliza con el dedo como las historias: portada, fotos y escribir, nivel tras nivel,
+// y al final un momento para sentirlo (respirar + Alhamdulillah).
 export default function Gratitud({ onDone }) {
   const { user } = useAuth()
-  const [photos, savePhotos] = useGratitudPhotos()
-  const [entries, setEntries] = useState(null)        // días anteriores (y hoy)
+  const [g, saveG] = useGratitud()
+  const photos = g.photos || {}
+  const captions = g.captions || {}
+  const [entries, setEntries] = useState(null)
   const [today, setToday] = useState({ salud: '', familia: '', logros: '' })
   const [error, setError] = useState('')
+  const [journey, setJourney] = useState(null)   // índice de la pantalla donde empieza
   const [moment, setMoment] = useState(false)
-  const [managing, setManaging] = useState(null)     // nivel cuyas fotos se editan
+  const [managing, setManaging] = useState(null)
 
   useEffect(() => {
     if (!user) return
@@ -40,13 +47,17 @@ export default function Gratitud({ onDone }) {
     }, 800)
   }
 
+  const slides = useMemo(() => buildSlides(g.photos || {}), [g.photos])
+  const startAt = (levelId, url) => setJourney(Math.max(0, slides.findIndex(s =>
+    s.level.id === levelId && (url ? s.url === url : s.kind === 'title'))))
   const written = LEVELS.filter(l => today[l.id].trim()).length
   const allPhotos = LEVELS.flatMap(l => photos[l.id] || [])
 
   if (managing) {
     const level = LEVELS.find(l => l.id === managing)
-    return <ManagePhotos level={level} list={photos[level.id] || []} userId={user.id}
-      onChange={list => savePhotos({ ...photos, [level.id]: list })} onClose={() => setManaging(null)} />
+    return <ManagePhotos level={level} list={photos[level.id] || []} captions={captions} userId={user.id}
+      onChange={(list, caps = captions) => saveG({ photos: { ...photos, [level.id]: list }, captions: caps })}
+      onClose={() => setManaging(null)} />
   }
 
   return (
@@ -57,9 +68,14 @@ export default function Gratitud({ onDone }) {
       </div>
       {error && <p className="text-xs font-semibold text-red-500">{error}</p>}
 
-      {LEVELS.map((l, i) => (
-        <LevelCard key={l.id} level={l} offset={i} photos={photos[l.id] || []} value={today[l.id]}
-          onWrite={t => write(l.id, t)} onPhotos={() => setManaging(l.id)} />
+      <button onClick={() => setJourney(0)}
+        className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-rose-500 to-amber-500 text-white font-black text-sm shadow flex items-center justify-center gap-2">
+        <Play size={16} fill="currentColor" /> Empezar el recorrido
+      </button>
+
+      {LEVELS.map(l => (
+        <LevelCard key={l.id} level={l} photos={photos[l.id] || []} value={today[l.id]}
+          onWrite={t => write(l.id, t)} onPhotos={() => setManaging(l.id)} onOpen={url => startAt(l.id, url)} />
       ))}
 
       <button onClick={() => setMoment(true)} disabled={written < 3}
@@ -69,35 +85,46 @@ export default function Gratitud({ onDone }) {
 
       {entries && <Memory entries={entries} />}
 
+      {journey !== null && (
+        <Journey slides={slides} start={journey} captions={captions} today={today} onWrite={write}
+          onFinish={() => { setJourney(null); setMoment(true) }} onClose={() => setJourney(null)} />
+      )}
       {moment && <Moment photos={allPhotos} today={today}
         onFinish={() => { setMoment(false); onDone?.() }} onClose={() => setMoment(false)} />}
     </div>
   )
 }
 
-// Fotos que se van cambiando solas con un fundido
-function Slideshow({ photos, offset = 0, every = 4500 }) {
-  const [i, setI] = useState(offset)
-  useEffect(() => {
-    if (photos.length < 2) return
-    const t = setInterval(() => setI(n => n + 1), every)
-    return () => clearInterval(t)
-  }, [photos.length, every])
-  const cur = photos.length ? i % photos.length : -1
-  return photos.map((src, k) => (
-    <img key={src} src={src} alt="" className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
-      style={{ opacity: k === cur ? 1 : 0 }} />
-  ))
-}
+// Índice de la pantalla visible en un carrusel horizontal
+const pageOf = el => Math.round(el.scrollLeft / el.clientWidth)
 
-function LevelCard({ level, offset, photos, value, onWrite, onPhotos }) {
+function LevelCard({ level, photos, value, onWrite, onPhotos, onOpen }) {
+  const [i, setI] = useState(0)
   const done = value.trim()
   return (
     <div className="rounded-3xl overflow-hidden shadow-sm bg-white">
-      <div className={`relative h-56 bg-gradient-to-br ${level.color}`}>
-        <Slideshow photos={photos} offset={offset} every={4500 + offset * 700} />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent pointer-events-none" />
-        {!photos.length && <p className="absolute inset-0 flex items-center justify-center text-7xl opacity-40 pointer-events-none">{level.emoji}</p>}
+      <div className={`relative h-80 bg-gradient-to-br ${level.color}`}>
+        {photos.length ? (
+          <div className="absolute inset-0 flex overflow-x-auto snap-x snap-mandatory" style={noScrollbar}
+            onScroll={e => setI(pageOf(e.currentTarget))}>
+            {photos.map(url => (
+              <button key={url} onClick={() => onOpen(url)} aria-label="Ver a pantalla completa"
+                className="flex-none w-full h-full snap-center">
+                <img src={url} alt="" className="w-full h-full object-cover" draggable={false} />
+              </button>
+            ))}
+          </div>
+        ) : (
+          <button onClick={() => onOpen(null)} className="absolute inset-0 flex items-center justify-center text-7xl opacity-40" aria-label="Abrir">
+            {level.emoji}
+          </button>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent pointer-events-none" />
+        {photos.length > 1 && (
+          <div className="absolute top-4 left-4 flex gap-1.5 pointer-events-none">
+            {photos.map((u, k) => <span key={u} className={`h-1.5 rounded-full transition-all ${k === i ? 'w-5 bg-white' : 'w-1.5 bg-white/50'}`} />)}
+          </div>
+        )}
         <div className="absolute bottom-0 inset-x-0 p-4 text-white pointer-events-none">
           <p className="text-lg font-black flex items-center gap-2">
             {level.emoji} {level.title}
@@ -105,20 +132,132 @@ function LevelCard({ level, offset, photos, value, onWrite, onPhotos }) {
           </p>
           <p className="text-sm font-semibold text-white/85 leading-snug">{promptOf(level)}</p>
         </div>
-        {/* El botón va el último y por encima: nada de la tarjeta le quita el toque */}
         <button onClick={onPhotos} aria-label="Fotos de este nivel"
           className="absolute z-10 top-3 right-3 h-9 px-3 rounded-full bg-black/45 backdrop-blur text-white text-xs font-black flex items-center gap-1.5 active:bg-black/65">
           <Camera size={15} /> {photos.length || 'Añadir fotos'}
         </button>
       </div>
-      <textarea value={value} onChange={e => onWrite(e.target.value)} rows={2}
-        placeholder="Doy gracias por…"
-        className="w-full px-4 py-3 text-[15px] text-slate-800 placeholder:text-slate-400 resize-none outline-none" />
+      <div className="flex items-start gap-2 px-4 py-3">
+        <textarea value={value} onChange={e => onWrite(e.target.value)} rows={2} placeholder="Doy gracias por…"
+          className="flex-1 text-[15px] text-slate-800 placeholder:text-slate-400 resize-none outline-none" />
+        <MicButton lang="es-ES" onText={t => onWrite((value ? value.trimEnd() + ' ' : '') + t)} />
+      </div>
     </div>
   )
 }
 
-function ManagePhotos({ level, list, userId, onChange, onClose }) {
+// El recorrido a pantalla completa: se desliza con el dedo (o tocando los lados de una foto)
+function Journey({ slides, start, captions, today, onWrite, onFinish, onClose }) {
+  const ref = useRef(null)
+  const [idx, setIdx] = useState(start)
+  useLayoutEffect(() => { ref.current.scrollLeft = start * ref.current.clientWidth }, [start])
+  const go = i => ref.current.scrollTo({ left: i * ref.current.clientWidth, behavior: 'smooth' })
+  const cur = slides[idx] || slides[0]
+
+  function next() {
+    if (idx < slides.length - 1) return go(idx + 1)
+    const missing = LEVELS.find(l => !today[l.id].trim())
+    if (missing) return go(slides.findIndex(s => s.kind === 'write' && s.level.id === missing.id))
+    onFinish()
+  }
+
+  // Barras de arriba: una por nivel, se llena según por dónde vas dentro de él
+  const bars = LEVELS.map(l => {
+    const first = slides.findIndex(s => s.level.id === l.id)
+    const count = slides.filter(s => s.level.id === l.id).length
+    const fill = idx < first ? 0 : idx >= first + count ? 1 : (idx - first + 1) / count
+    return { l, fill }
+  })
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black text-white">
+      <div ref={ref} className="h-full flex overflow-x-auto snap-x snap-mandatory" style={noScrollbar}
+        onScroll={e => setIdx(pageOf(e.currentTarget))}>
+        {slides.map((s, k) => (
+          <div key={k} className="relative flex-none w-full h-full snap-center snap-always overflow-hidden">
+            {s.kind === 'photo' && <PhotoSlide s={s} caption={captions[s.url]} onPrev={() => go(k - 1)} onNext={next} />}
+            {s.kind === 'title' && <TitleSlide s={s} />}
+            {s.kind === 'write' && (
+              <WriteSlide s={s} value={today[s.level.id]} onWrite={t => onWrite(s.level.id, t)} onNext={next}
+                last={k === slides.length - 1} active={k === idx} />
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="absolute inset-x-0 top-0 px-3 pointer-events-none" style={{ paddingTop: 'calc(0.6rem + env(safe-area-inset-top))' }}>
+        <div className="flex gap-1.5">
+          {bars.map(({ l, fill }) => (
+            <div key={l.id} className="flex-1 h-1 rounded-full bg-white/30 overflow-hidden">
+              <div className="h-full bg-white transition-all duration-300" style={{ width: `${fill * 100}%` }} />
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center justify-between mt-2">
+          <p className="text-sm font-black drop-shadow">{cur.level.emoji} {cur.level.title}</p>
+          <button onClick={onClose} aria-label="Cerrar"
+            className="pointer-events-auto w-9 h-9 rounded-full bg-black/40 backdrop-blur flex items-center justify-center"><X size={18} /></button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TitleSlide({ s }) {
+  return (
+    <div className={`h-full bg-gradient-to-br ${s.level.color} flex flex-col items-center justify-center px-8 text-center`}>
+      <p className="text-8xl">{s.level.emoji}</p>
+      <p className="mt-6 text-3xl font-black">{s.level.title}</p>
+      <p className="mt-3 text-lg font-semibold text-white/90 leading-snug">{promptOf(s.level)}</p>
+      <p className="mt-10 text-sm font-black text-white/70 flex items-center gap-1">Desliza <ChevronRight size={16} /></p>
+    </div>
+  )
+}
+
+function PhotoSlide({ s, caption, onPrev, onNext }) {
+  return (
+    <>
+      <img src={s.url} alt="" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/40 pointer-events-none" />
+      {/* Tocar a la izquierda o a la derecha también pasa de foto */}
+      <button onClick={onPrev} aria-label="Anterior" className="absolute left-0 inset-y-0 w-1/4" />
+      <button onClick={onNext} aria-label="Siguiente" className="absolute right-0 inset-y-0 w-1/4" />
+      {caption && (
+        <p className="absolute inset-x-0 px-6 text-center text-xl font-black leading-snug drop-shadow-lg pointer-events-none"
+          style={{ bottom: 'calc(2.5rem + env(safe-area-inset-bottom))' }}>{caption}</p>
+      )}
+    </>
+  )
+}
+
+function WriteSlide({ s, value, onWrite, onNext, last, active }) {
+  const ref = useRef(null)
+  // Al llegar a esta pantalla, el cursor ya está listo para escribir (si aún está vacía)
+  useEffect(() => {
+    if (active && !value.trim()) setTimeout(() => ref.current?.focus({ preventScroll: true }), 350)
+  }, [active]) // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div className={`h-full bg-gradient-to-br ${s.level.color} flex flex-col justify-center px-6`}
+      style={{ paddingTop: 'calc(4.5rem + env(safe-area-inset-top))', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
+      <p className="text-5xl">{s.level.emoji}</p>
+      <p className="mt-3 text-2xl font-black leading-snug">{promptOf(s.level)}</p>
+      <div className="mt-5 rounded-3xl bg-white/95 text-slate-800 p-4 shadow-lg">
+        <textarea ref={ref} value={value} onChange={e => onWrite(e.target.value)} rows={4} placeholder="Doy gracias por…"
+          className="w-full bg-transparent text-[17px] placeholder:text-slate-400 resize-none outline-none" />
+        <div className="flex justify-end">
+          <MicButton lang="es-ES" size={18} className="!w-10 !h-10"
+            onText={t => onWrite((value ? value.trimEnd() + ' ' : '') + t)} />
+        </div>
+      </div>
+      <button onClick={() => { ref.current?.blur(); onNext() }}
+        className="mt-5 w-full py-4 rounded-2xl bg-white text-slate-900 font-black text-sm shadow-lg flex items-center justify-center gap-1">
+        {last ? '🤲 Terminar' : <>Siguiente nivel <ChevronRight size={17} /></>}
+      </button>
+    </div>
+  )
+}
+
+function ManagePhotos({ level, list, captions, userId, onChange, onClose }) {
   const fileRef = useRef(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -139,8 +278,14 @@ function ManagePhotos({ level, list, userId, onChange, onClose }) {
     setBusy(false)
   }
   function remove(url) {
-    onChange(list.filter(u => u !== url))
+    const caps = { ...captions }
+    delete caps[url]
+    onChange(list.filter(u => u !== url), caps)
     deleteVisionImage(url)
+  }
+  function setCaption(url, text) {
+    if ((captions[url] || '') === text.trim()) return
+    onChange(list, { ...captions, [url]: text.trim() })
   }
   return (
     <div className="max-w-xl mx-auto space-y-3">
@@ -149,19 +294,24 @@ function ManagePhotos({ level, list, userId, onChange, onClose }) {
         {level.id === 'salud' && 'Tú entrenando, en la naturaleza, sano y con energía.'}
         {level.id === 'familia' && 'Fotos reales de tu familia: las que más te emocionan.'}
         {level.id === 'logros' && 'Lo que has conseguido: tu negocio, tu casa, tu coche, un viaje, un título…'}
+        {' '}Debajo de cada una puedes escribir su historia.
       </p>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-3">
         {list.map(url => (
-          <div key={url} className="relative aspect-[4/5] rounded-xl overflow-hidden bg-slate-200">
-            <img src={url} alt="" className="w-full h-full object-cover" />
-            <button onClick={() => remove(url)} aria-label="Quitar foto"
-              className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/55 text-white flex items-center justify-center">
-              <X size={14} strokeWidth={3} />
-            </button>
+          <div key={url} className="rounded-2xl overflow-hidden bg-white shadow-sm">
+            <div className="relative aspect-[3/4] bg-slate-200">
+              <img src={url} alt="" className="w-full h-full object-cover" />
+              <button onClick={() => remove(url)} aria-label="Quitar foto"
+                className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/55 text-white flex items-center justify-center">
+                <X size={14} strokeWidth={3} />
+              </button>
+            </div>
+            <input defaultValue={captions[url] || ''} onBlur={e => setCaption(url, e.target.value)}
+              placeholder="Frase de esta foto…" className="w-full px-3 py-2.5 text-xs font-semibold text-slate-700 outline-none" />
           </div>
         ))}
         <button onClick={() => fileRef.current?.click()} disabled={busy}
-          className="aspect-[4/5] rounded-xl border-2 border-dashed border-slate-300 text-slate-400 flex flex-col items-center justify-center gap-1 active:bg-slate-50 disabled:opacity-50">
+          className="aspect-[3/4] rounded-2xl border-2 border-dashed border-slate-300 text-slate-400 flex flex-col items-center justify-center gap-1 active:bg-slate-50 disabled:opacity-50">
           {busy
             ? <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
             : <><Plus size={22} /><span className="text-[11px] font-black">Añadir fotos</span></>}
@@ -199,6 +349,21 @@ function Memory({ entries }) {
   )
 }
 
+// Fotos que se van cambiando solas con un fundido (solo de fondo en el momento final)
+function Fade({ photos, every = 5000 }) {
+  const [i, setI] = useState(0)
+  useEffect(() => {
+    if (photos.length < 2) return
+    const t = setInterval(() => setI(n => n + 1), every)
+    return () => clearInterval(t)
+  }, [photos.length, every])
+  const cur = photos.length ? i % photos.length : -1
+  return photos.map((src, k) => (
+    <img key={src} src={src} alt="" className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
+      style={{ opacity: k === cur ? 1 : 0 }} />
+  ))
+}
+
 // El momento de sentirlo: tus fotos de fondo, respirar y Alhamdulillah
 function Moment({ photos, today, onFinish, onClose }) {
   const [step, setStep] = useState(0)    // 0..2 respiraciones, 3 = Alhamdulillah
@@ -210,16 +375,15 @@ function Moment({ photos, today, onFinish, onClose }) {
     return () => clearTimeout(t)
   }, [step])
   const lines = LEVELS.map(l => ({ l, text: today[l.id].trim() }))
-  const breathing = step < 3
   return (
     <div className="fixed inset-0 z-[60] bg-black text-white overflow-hidden">
-      <div className="absolute inset-0 scale-110"><Slideshow photos={photos} every={5000} /></div>
+      <div className="absolute inset-0 scale-110"><Fade photos={photos} /></div>
       <div className="absolute inset-0 bg-black/55" />
       <button onClick={onClose} aria-label="Cerrar"
         className="absolute right-4 w-10 h-10 rounded-full bg-white/15 flex items-center justify-center z-10"
         style={{ top: 'calc(1rem + env(safe-area-inset-top))' }}><X size={18} /></button>
       <div className="relative h-full flex flex-col items-center justify-center px-6 text-center">
-        {breathing ? (
+        {step < 3 ? (
           <>
             <div className="w-40 h-40 rounded-full border-4 border-white/70 bg-white/10 transition-transform ease-in-out"
               style={{ transform: `scale(${!go || step % 2 ? 0.6 : 1.15})`, transitionDuration: '5000ms' }} />
