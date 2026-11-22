@@ -42,10 +42,10 @@ function shrink(file, max = 1400) {
   })
 }
 
-// Sube una foto a vision/<id de usuario>/ y devuelve su enlace público
-export async function uploadVisionImage(file, userId) {
+// Sube una foto a vision/<id de usuario>/[carpeta/] y devuelve su enlace público
+export async function uploadVisionImage(file, userId, folder = '') {
   const blob = await shrink(file)
-  const path = `${userId}/${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}.webp`
+  const path = `${userId}/${folder ? folder + '/' : ''}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}.webp`
   const { error } = await supabase.storage.from('vision').upload(path, blob, { contentType: 'image/webp' })
   if (error) throw error
   return supabase.storage.from('vision').getPublicUrl(path).data.publicUrl
