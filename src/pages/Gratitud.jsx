@@ -96,19 +96,20 @@ function LevelCard({ level, offset, photos, value, onWrite, onPhotos }) {
     <div className="rounded-3xl overflow-hidden shadow-sm bg-white">
       <div className={`relative h-56 bg-gradient-to-br ${level.color}`}>
         <Slideshow photos={photos} offset={offset} every={4500 + offset * 700} />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
-        <button onClick={onPhotos} aria-label="Fotos de este nivel"
-          className="absolute top-3 right-3 h-9 px-3 rounded-full bg-black/45 backdrop-blur text-white text-xs font-black flex items-center gap-1.5">
-          <Camera size={15} /> {photos.length || 'Añadir fotos'}
-        </button>
-        {!photos.length && <p className="absolute inset-0 flex items-center justify-center text-7xl opacity-40">{level.emoji}</p>}
-        <div className="absolute bottom-0 inset-x-0 p-4 text-white">
+        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent pointer-events-none" />
+        {!photos.length && <p className="absolute inset-0 flex items-center justify-center text-7xl opacity-40 pointer-events-none">{level.emoji}</p>}
+        <div className="absolute bottom-0 inset-x-0 p-4 text-white pointer-events-none">
           <p className="text-lg font-black flex items-center gap-2">
             {level.emoji} {level.title}
             {done && <span className="w-5 h-5 rounded-full bg-white text-emerald-600 flex items-center justify-center"><Check size={13} strokeWidth={4} /></span>}
           </p>
           <p className="text-sm font-semibold text-white/85 leading-snug">{promptOf(level)}</p>
         </div>
+        {/* El botón va el último y por encima: nada de la tarjeta le quita el toque */}
+        <button onClick={onPhotos} aria-label="Fotos de este nivel"
+          className="absolute z-10 top-3 right-3 h-9 px-3 rounded-full bg-black/45 backdrop-blur text-white text-xs font-black flex items-center gap-1.5 active:bg-black/65">
+          <Camera size={15} /> {photos.length || 'Añadir fotos'}
+        </button>
       </div>
       <textarea value={value} onChange={e => onWrite(e.target.value)} rows={2}
         placeholder="Doy gracias por…"
